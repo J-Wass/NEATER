@@ -15,19 +15,45 @@ class Genome:
         self.neuron_mutation = neuron_mutation
         self.connection_mutation = connection_mutation
         self.neuron_genes = []
+        self.inputs = []
+        self.outputs = []
         for i in range(num_inputs):
-            self.neuron_genes.append(NeuronGene(id=i, layer=0))
+            neuron = NeuronGene(id=i, layer=0)
+            self.neuron_genes.append(neuron)
+            self.inputs.append(neuron)
         for o in range(num_outputs):
-            self.neuron_genes.append(NeuronGene(id=o+num_inputs, layer=1))
+            neuron = NeuronGene(id=o+num_inputs, layer=1)
+            self.neuron_genes.append(neuron)
+            self.outputs.append(neuron)
         # initialize connection genes with links from all inputs to all output
         self.connection_genes = []
         counter = 0
         for i in range(num_inputs):
             for o in range(num_outputs):
                 counter += 1
-                self.connection_genes.append(
-                    ConnectionGene(in_neuron=self.neuron_genes[i], out_neuron=self.neuron_genes[o+num_inputs], weight=1, innovation_number=counter)
-                    )
+                conn = ConnectionGene(in_neuron=self.neuron_genes[i], out_neuron=self.neuron_genes[o+num_inputs], weight=1, innovation_number=counter)
+                self.connection_genes.append(conn)
+                conn.out_neuron.add_connection(conn)
+
+    def activate(self, input_list):
+        if len(input_list) != len(self.inputs):
+            raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
+        output = []
+        total_exponentiated_output = 0
+        for i in range(len(self.inputs)):
+            self.inputs[i].value = input_list[i]
+        #TODO: this softmax equation should probably be stabilized
+        if len(self.outputs) > 1:
+            for neuron in self.outputs:
+                output.append(math.e ** neuron.get_value())
+                total_exponentiated_output += math.e ** neuron.get_value()
+            softmax_output = []
+            for activation in output:
+                softmax_output.append(activation/total_exponentiated_output)
+            return softmax_output
+        else:
+            val = self.outputs[0].get_value()
+            return [(math.e ** val)/(1 + math.e ** val)]
 
     # mutates this genome, either through connection weight or topology
     def mutate(self):
@@ -47,12 +73,17 @@ class Genome:
             out_neuron = mutated_connection.out_neuron
 
             # calculate which layer this new neuron is in, create new connections and neuron
-            new_neuron_id = len(self.neuron_genes) + 1
+            new_neuron_id = len(self.neuron_genes)
             new_neuron_layer = (in_neuron.layer + out_neuron.layer)/2
             new_neuron = NeuronGene(new_neuron_id, new_neuron_layer)
+
+            conn1 = ConnectionGene(in_neuron=in_neuron,out_neuron=new_neuron, weight=1)
+            conn2 = ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight)
+            new_neuron.add_connection(conn1)
+            out_neuron.add_connection(conn2)
             self.neuron_genes.append(new_neuron)
-            self.connection_genes.append(ConnectionGene(in_neuron=in_neuron,out_neuron=new_neuron, weight=1))
-            self.connection_genes.append(ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight))
+            self.connection_genes.append(conn1)
+            self.connection_genes.append(conn2)
             mutated_connection.disable()
 
         # chance of adding a new connection
@@ -66,7 +97,9 @@ class Genome:
                 # if there is already a connection between these two neurons, the mutate fails
                 connection_genes = list(filter(lambda x: x.in_neuron == in_neuron and x.out_neuron == target, self.connection_genes))
                 if len(connection_genes) == 0:
-                    self.connection_genes.append(ConnectionGene(in_neuron=in_neuron,out_neuron=target, weight=1))
+                    conn = ConnectionGene(in_neuron=in_neuron,out_neuron=target, weight=1)
+                    self.connection_genes.append(conn)
+                    target.add_connection(conn)
 
     def __str__(self):
         ret_string = '-----\nNeurons: | '

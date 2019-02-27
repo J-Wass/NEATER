@@ -5,6 +5,17 @@ class NeuronGene:
     def __init__(self, id, layer):
         self.id = id
         self.layer = layer
+        self.value = 0
+        self.in_connections = []
+    def add_connection(self, conn):
+        self.in_connections.append(conn)
+    def get_value(self):
+        if len(self.in_connections) == 0:
+            return self.value
+        self.value = 0
+        for conn in self.in_connections:
+            self.value += conn.weight * conn.in_neuron.get_value()
+        return self.value
 
 class ConnectionGene:
     innovation_number = 1
