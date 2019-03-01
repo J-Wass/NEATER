@@ -3,20 +3,20 @@ import random
 import math
 
 class Genome:
-    class NeuralNet:
-        def __init__(self, neurons, connections):
-            self.neurons = neurons
-            self.connections = connections
-
     def __init__(self, num_inputs, num_outputs, weight_mutation=0.3, weight_randomize=0.1, neuron_mutation=0.05, connection_mutation=0.05):
         self.fitness = 0
+        # chances of the 4 different mutations
         self.weight_mutation = weight_mutation
         self.weight_randomize = weight_randomize
         self.neuron_mutation = neuron_mutation
         self.connection_mutation = connection_mutation
+
+        # genes that build the genotype
+        self.connection_genes = []
         self.neuron_genes = []
         self.inputs = []
         self.outputs = []
+        self.ave_weight = 0
         for i in range(num_inputs):
             neuron = NeuronGene(id=i, layer=0)
             self.neuron_genes.append(neuron)
@@ -26,7 +26,6 @@ class Genome:
             self.neuron_genes.append(neuron)
             self.outputs.append(neuron)
         # initialize connection genes with links from all inputs to all output
-        self.connection_genes = []
         counter = 0
         for i in range(num_inputs):
             for o in range(num_outputs):
@@ -101,7 +100,7 @@ class Genome:
                     self.connection_genes.append(conn)
                     target.add_connection(conn)
 
-    def __str__(self):
+    def __repr__(self):
         ret_string = '-----\nNeurons: | '
         for neuron in self.neuron_genes:
             ret_string += "id{0}: {1} | ".format(neuron.id, neuron.layer)
