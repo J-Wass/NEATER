@@ -13,17 +13,16 @@ class Genome:
 
         # genes that build the genotype
         self.connection_genes = []
-        self.neuron_genes = []
+        self.neuron_genes = {}
         self.inputs = []
         self.outputs = []
-        self.ave_weight = 0
         for i in range(num_inputs):
             neuron = NeuronGene(id=i, layer=0)
-            self.neuron_genes.append(neuron)
+            self.neuron_genes[i] = neuron
             self.inputs.append(neuron)
         for o in range(num_outputs):
             neuron = NeuronGene(id=o+num_inputs, layer=1)
-            self.neuron_genes.append(neuron)
+            self.neuron_genes[o+num_inputs] = neuron
             self.outputs.append(neuron)
         # initialize connection genes with links from all inputs to all output
         counter = 0
@@ -67,12 +66,13 @@ class Genome:
         # chance of adding a new neuron
         if random.uniform(0,1) < self.neuron_mutation:
             # choose a random connection to mutate into this new neuron
-            mutated_connection = random.choice(self.connection_genes)
+            valid_connections = list(filter(lambda x: x.expressed, self.connection_genes))
+            mutated_connection = random.choice(valid_connections)
             in_neuron = mutated_connection.in_neuron
             out_neuron = mutated_connection.out_neuron
 
             # calculate which layer this new neuron is in, create new connections and neuron
-            new_neuron_id = len(self.neuron_genes)
+            new_neuron_id = len(self.neuron_genes.values())
             new_neuron_layer = (in_neuron.layer + out_neuron.layer)/2
             new_neuron = NeuronGene(new_neuron_id, new_neuron_layer)
 
@@ -80,7 +80,7 @@ class Genome:
             conn2 = ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight)
             new_neuron.add_connection(conn1)
             out_neuron.add_connection(conn2)
-            self.neuron_genes.append(new_neuron)
+            self.neuron_genes[new_neuron_id] = new_neuron
             self.connection_genes.append(conn1)
             self.connection_genes.append(conn2)
             mutated_connection.disable()
@@ -89,8 +89,8 @@ class Genome:
         if random.uniform(0,1) < self.connection_mutation:
             # choose a random neuron and attempt to connect to some neuron ahead of it
             # if no neurons are ahead of this neuron, the mutate fails
-            in_neuron = random.choice(self.neuron_genes)
-            possible_targets = list(filter(lambda x: x.layer > in_neuron.layer , self.neuron_genes))
+            in_neuron = random.choice(self.neuron_genes.values())
+            possible_targets = list(filter(lambda x: x.layer > in_neuron.layer , self.neuron_genes.values()))
             if len(possible_targets) > 0:
                 target = random.choice(possible_targets)
                 # if there is already a connection between these two neurons, the mutate fails
@@ -102,7 +102,7 @@ class Genome:
 
     def __repr__(self):
         ret_string = '-----\nNeurons: | '
-        for neuron in self.neuron_genes:
+        for neuron in self.neuron_genes.values():
             ret_string += "id{0}: {1} | ".format(neuron.id, neuron.layer)
         ret_string += "\nConnections: | "
         for connection in self.connection_genes:

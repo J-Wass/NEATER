@@ -10,10 +10,11 @@ class NeuronGene:
     def add_connection(self, conn):
         self.in_connections.append(conn)
     def get_value(self):
-        if len(self.in_connections) == 0:
+        valid_connections = list(filter(lambda x: x.expressed, self.in_connections))
+        if len(valid_connections) == 0:
             return self.value
         self.value = 0
-        for conn in self.in_connections:
+        for conn in valid_connections:
             self.value += conn.weight * conn.in_neuron.get_value()
         return self.value
 

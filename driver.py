@@ -8,5 +8,5 @@ def test_xor(individual):
             fitness -= (individual.activate([x,y])[0] - float(x^y)) ** 2
     return fitness
 
-model = NEATModel(population_size=200, input_size=2, output_size=1)
+model = NEATModel(population_size=100, input_size=2, output_size=1)
 model.run(generations=1, fitness_function=test_xor)
