@@ -3,7 +3,7 @@ import random
 import math
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.3, weight_randomize=0.1, neuron_mutation=0.05, connection_mutation=0.05):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.5, weight_randomize=0.1, neuron_mutation=0.5, connection_mutation=0.05):
         self.fitness = 0
         # chances of the 4 different mutations
         self.weight_mutation = weight_mutation
@@ -89,7 +89,7 @@ class Genome:
         if random.uniform(0,1) < self.connection_mutation:
             # choose a random neuron and attempt to connect to some neuron ahead of it
             # if no neurons are ahead of this neuron, the mutate fails
-            in_neuron = random.choice(self.neuron_genes.values())
+            in_neuron = random.choice(list(self.neuron_genes.values()))
             possible_targets = list(filter(lambda x: x.layer > in_neuron.layer , self.neuron_genes.values()))
             if len(possible_targets) > 0:
                 target = random.choice(possible_targets)
@@ -101,7 +101,7 @@ class Genome:
                     target.add_connection(conn)
 
     def __repr__(self):
-        ret_string = '-----\nNeurons: | '
+        ret_string = '-----\n({0}) Neurons: | '.format(self.fitness)
         for neuron in self.neuron_genes.values():
             ret_string += "id{0}: {1} | ".format(neuron.id, neuron.layer)
         ret_string += "\nConnections: | "

@@ -9,4 +9,4 @@ def test_xor(individual):
     return fitness
 
 model = NEATModel(population_size=100, input_size=2, output_size=1)
-model.run(generations=1, fitness_function=test_xor)
+model.run(generations=100, fitness_function=test_xor)
