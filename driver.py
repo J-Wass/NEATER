@@ -7,7 +7,8 @@ def test_xor(individual):
         for y in range(2):
             act = individual.activate([x,y])[0]
             fitness -= (act - float(x^y)) ** 2
+            #print("{0} vs {1}".format(act, float(x^y)))
     return fitness
 
-model = NEATModel(population_size=150, input_size=2, output_size=1)
+model = NEATModel(population_size=300, input_size=2, output_size=1)
 model.run(generations=300, fitness_function=test_xor)

@@ -3,7 +3,7 @@ import random
 import math
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.3, weight_randomize=0.1, neuron_mutation=0.05, connection_mutation=0.05):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.2, weight_randomize=0.1, neuron_mutation=0.05, connection_mutation=0.05):
         self.fitness = 0
         # chances of the 4 different mutations
         self.weight_mutation = weight_mutation
@@ -32,26 +32,29 @@ class Genome:
                 conn = ConnectionGene(in_neuron=self.neuron_genes[i], out_neuron=self.neuron_genes[o+num_inputs], weight=1, innovation_number=counter)
                 self.connection_genes.append(conn)
                 conn.out_neuron.add_connection(conn)
+    @staticmethod
+    def softmax(inputs):
+        total_exponentiated_value = 0
+        for i in inputs:
+            total_exponentiated_value += math.e ** i
+        return list(map(lambda x: (math.e ** x)/total_exponentiated_value ,inputs))
 
     def activate(self, input_list):
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
         output = []
         total_exponentiated_output = 0
+        softmax_inputs = Genome.softmax(input_list)
         for i in range(len(self.inputs)):
-            self.inputs[i].value = input_list[i]
+            self.inputs[i].value = softmax_inputs[i]
         #TODO: this softmax equation should probably be stabilized
         if len(self.outputs) > 1:
             for neuron in self.outputs:
-                output.append(math.e ** neuron.get_value())
-                total_exponentiated_output += math.e ** neuron.get_value()
-            softmax_output = []
-            for activation in output:
-                softmax_output.append(activation/total_exponentiated_output)
-            return softmax_output
+                output.append(neuron.get_value())
+            return Genome.softmax(output)
         else:
             val = self.outputs[0].get_value()
-            self.outputs[0].lookup_table = {}
+            self.outputs[0].lookup_table = {} # resets the stack used for get_value()
             return [(math.e ** val)/(1 + math.e ** val)]
 
     # mutates this genome, either through connection weight or topology
@@ -101,10 +104,15 @@ class Genome:
                     self.connection_genes.append(conn)
                     target.add_connection(conn)
 
+        # chance of mutating a new neuron bias
+        if random.uniform(0,1) < self.weight_mutation:
+            for neuron in self.neuron_genes.values():
+                neuron.mutate_bias()
+
     def __repr__(self):
-        ret_string = '-----\n({0}) Neurons: | '.format(self.fitness)
+        ret_string = '-----\n({0})\n Neurons: | '.format(self.fitness)
         for neuron in self.neuron_genes.values():
-            ret_string += "id{0}: {1} | ".format(neuron.id, neuron.layer)
+            ret_string += "id{0}: {1} (bias={2}) | ".format(neuron.id, neuron.layer,neuron.bias)
         ret_string += "\nConnections: | "
         for connection in self.connection_genes:
             ret_string += "{0}: {1}->{2} ({3}) [expressed={4}] | ".format(connection.innovation_number, connection.in_neuron.id, connection.out_neuron.id, connection.weight, connection.expressed)

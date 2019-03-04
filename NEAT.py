@@ -79,13 +79,13 @@ class NEATModel:
                     if chosen_connection.in_neuron.id in neuron_genes:
                         in_neuron = neuron_genes[chosen_connection.in_neuron.id]
                     else:
-                        in_neuron = NeuronGene(id=neuron_counter, layer=chosen_connection.in_neuron.layer)
+                        in_neuron = NeuronGene(id=neuron_counter, layer=chosen_connection.in_neuron.layer, bias=chosen_connection.in_neuron.bias)
                         neuron_genes[neuron_counter] = in_neuron
                         neuron_counter += 1
                     if chosen_connection.out_neuron.id in neuron_genes:
                         out_neuron = neuron_genes[chosen_connection.out_neuron.id]
                     else:
-                        out_neuron = NeuronGene(id=neuron_counter, layer=chosen_connection.out_neuron.layer)
+                        out_neuron = NeuronGene(id=neuron_counter, layer=chosen_connection.out_neuron.layer, bias=chosen_connection.out_neuron.bias)
                         neuron_genes[neuron_counter] = out_neuron
                         neuron_counter += 1
                     new_connection = ConnectionGene(in_neuron, out_neuron, chosen_connection.weight, chosen_connection.innovation_number)
@@ -101,13 +101,13 @@ class NEATModel:
                     if p2.in_neuron.id in neuron_genes:
                         in_neuron = neuron_genes[p2.in_neuron.id]
                     else:
-                        in_neuron = NeuronGene(id=neuron_counter, layer=p2.in_neuron.layer)
+                        in_neuron = NeuronGene(id=neuron_counter, layer=p2.in_neuron.layer, bias=p2.in_neuron.bias)
                         neuron_genes[neuron_counter] = in_neuron
                         neuron_counter += 1
                     if p2.out_neuron.id in neuron_genes:
                         out_neuron = neuron_genes[p2.out_neuron.id]
                     else:
-                        out_neuron = NeuronGene(id=neuron_counter, layer=p2.out_neuron.layer)
+                        out_neuron = NeuronGene(id=neuron_counter, layer=p2.out_neuron.layer, bias=p2.out_neuron.bias)
                         neuron_genes[neuron_counter] = out_neuron
                         neuron_counter += 1
                     new_connection = ConnectionGene(in_neuron, out_neuron, p2.weight, p2.innovation_number)
@@ -120,13 +120,13 @@ class NEATModel:
                     if p1.in_neuron.id in neuron_genes:
                         in_neuron = neuron_genes[p1.in_neuron.id]
                     else:
-                        in_neuron = NeuronGene(id=neuron_counter,layer=p1.in_neuron.layer)
+                        in_neuron = NeuronGene(id=neuron_counter,layer=p1.in_neuron.layer, bias=p1.in_neuron.bias)
                         neuron_genes[neuron_counter] = in_neuron
                         neuron_counter += 1
                     if p1.out_neuron.id in neuron_genes:
                         out_neuron = neuron_genes[p1.out_neuron.id]
                     else:
-                        out_neuron = NeuronGene(id=neuron_counter, layer=p1.out_neuron.layer)
+                        out_neuron = NeuronGene(id=neuron_counter, layer=p1.out_neuron.layer, bias=p1.out_neuron.bias)
                         neuron_genes[neuron_counter] = out_neuron
                         neuron_counter += 1
                     new_connection = ConnectionGene(in_neuron, out_neuron, p1.weight, p1.innovation_number)
@@ -147,13 +147,13 @@ class NEATModel:
                 if connection.in_neuron.id in neuron_genes:
                     in_neuron = neuron_genes[connection.in_neuron.id]
                 else:
-                    in_neuron = NeuronGene(id=neuron_counter, layer=connection.in_neuron.layer)
+                    in_neuron = NeuronGene(id=neuron_counter, layer=connection.in_neuron.layer, bias=connection.in_neuron.bias)
                     neuron_genes[neuron_counter] = in_neuron
                     neuron_counter += 1
                 if connection.out_neuron.id in neuron_genes:
                     out_neuron = neuron_genes[connection.out_neuron.id]
                 else:
-                    out_neuron = NeuronGene(id=neuron_counter, layer=connection.out_neuron.layer)
+                    out_neuron = NeuronGene(id=neuron_counter, layer=connection.out_neuron.layer, bias=connection.out_neuron.bias)
                     neuron_genes[neuron_counter] = out_neuron
                     neuron_counter += 1
                 new_connection = ConnectionGene(in_neuron, out_neuron, connection.weight, connection.innovation_number)
@@ -168,13 +168,13 @@ class NEATModel:
                 if connection.in_neuron.id in neuron_genes:
                     in_neuron = neuron_genes[connection.in_neuron.id]
                 else:
-                    in_neuron = NeuronGene(id=neuron_counter, layer=connection.in_neuron.layer)
+                    in_neuron = NeuronGene(id=neuron_counter, layer=connection.in_neuron.layer, bias=connection.in_neuron.layer)
                     neuron_genes[neuron_counter] = in_neuron
                     neuron_counter += 1
                 if connection.out_neuron.id in neuron_genes:
                     out_neuron = neuron_genes[connection.out_neuron.id]
                 else:
-                    out_neuron = NeuronGene(id=neuron_counter, layer=connection.out_neuron.layer)
+                    out_neuron = NeuronGene(id=neuron_counter, layer=connection.out_neuron.layer, bias=connection.out_neuron.bias)
                     neuron_genes[neuron_counter] = out_neuron
                     neuron_counter += 1
                 new_connection = ConnectionGene(in_neuron, out_neuron, connection.weight, connection.innovation_number)
@@ -189,14 +189,18 @@ class NEATModel:
             new_genome.connection_genes = connection_genes
             self.genomes.append(new_genome)
 
-    def run(self, generations, fitness_function, species_threshold = 6.0):
+    def run(self, generations, fitness_function, species_threshold = 3.0):
         self.fitness_function = fitness_function
         for gen in range(generations):
-            ave_fitness = 0
+            best_fitness = 0
+            best_genome = self.genomes[0]
+            self.species = []
             for genome in self.genomes:
                 # determine fitness of each genome, then speciate each genome
                 genome.fitness = fitness_function(genome)
-                ave_fitness += genome.fitness/len(self.genomes)
+                if genome.fitness > best_fitness:
+                    best_fitness = genome.fitness
+                    best_genome = genome
                 if len(self.species) == 0:
                     self.species.append([genome])
                 else:
@@ -209,7 +213,8 @@ class NEATModel:
                             break
                     if not found_species:
                         self.species.append([genome])
-            print("gen{0} {1}".format(gen,ave_fitness))
+            #print("\n\n--species ({0})-- {1}".format(len(self.species),"\n".join(str(s) for s in self.species)))
+            print("gen{0} best fitness: {1}| From:\n{2}".format(gen,best_fitness,best_genome))
             # determine which genomes are suitable for crossover
             suitable_genomes = []
             for species in self.species:
@@ -221,6 +226,7 @@ class NEATModel:
                         suitable_genomes.append(best_genome)
             if len(suitable_genomes) == 0:
                 raise Exception("Population is too speciated, either lower mutation chances or increase speciation distances")
+            #print("Suitable Genomes: {0}".format(suitable_genomes))
             # crossover and mutate
             if(len(suitable_genomes) > 2):
                 self.crossover(suitable_genomes)

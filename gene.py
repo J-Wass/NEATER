@@ -2,10 +2,11 @@ import random
 
 # connection gene that describes the weight between two neurons
 class NeuronGene:
-    def __init__(self, id, layer):
+    def __init__(self, id, layer, bias = 0):
         self.id = id
         self.layer = layer
         self.value = 0
+        self.bias = bias
         self.in_connections = []
         self.lookup_table = {}
 
@@ -23,6 +24,7 @@ class NeuronGene:
             current_node = node_stack.pop()
             connection_gene = current_node[0]
             multiplier = current_node[1]
+            activation += connection_gene.in_neuron.bias * multiplier
             new_connections = list(filter(lambda x: x.expressed, conn.in_neuron.in_connections))
             if len(new_connections) == 0:
                 activation += connection_gene.weight * connection_gene.in_neuron.value * multiplier
@@ -31,6 +33,9 @@ class NeuronGene:
                     val = connection_gene.weight * multiplier
                     node_stack.append((conn, connection_gene.weight * multiplier))
         return activation
+
+    def mutate_bias(self):
+        self.bias += random.uniform(-1.5,1.5)
 
 class ConnectionGene:
     innovation_number = 1
