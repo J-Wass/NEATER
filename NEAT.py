@@ -94,8 +94,8 @@ class NEATModel:
                     p2_gene_index += 1
                     p1_gene_index += 1
 
-                # always take disjoint genes
-                elif p1.innovation_number > p2.innovation_number:
+                # take a disjoint gene if parent is fitter
+                elif p1.innovation_number > p2.innovation_number and parent2.fitness > parent1.fitness:
                     in_neuron = None
                     out_neuron = None
                     if p2.in_neuron.id in neuron_genes:
@@ -114,7 +114,7 @@ class NEATModel:
                     out_neuron.add_connection(new_connection)
                     connection_genes.append(new_connection)
                     p2_gene_index += 1
-                else:
+                elif parent1.fitness > parent2.fitness:
                     in_neuron = None
                     out_neuron = None
                     if p1.in_neuron.id in neuron_genes:
@@ -133,7 +133,12 @@ class NEATModel:
                     out_neuron.add_connection(new_connection)
                     connection_genes.append(new_connection)
                     p1_gene_index += 1
-
+                else:
+                    # gene is disjoint but not from fitter parent, just continue
+                    if p1.innovation_number > p2.innovation_number:
+                        p2_gene_index += 1
+                    else:
+                        p1_gene_index += 1
             # take excess genes from more fit parent
             while p1_gene_index < len(parent1.connection_genes) and parent1.fitness > parent2.fitness:
                 connection = parent1.connection_genes[p1_gene_index]
@@ -184,14 +189,14 @@ class NEATModel:
             new_genome.connection_genes = connection_genes
             self.genomes.append(new_genome)
 
-    def run(self, generations, fitness_function, species_threshold = 3.0):
+    def run(self, generations, fitness_function, species_threshold = 6.0):
         self.fitness_function = fitness_function
         for gen in range(generations):
+            ave_fitness = 0
             for genome in self.genomes:
-                # determine fitness of each genome
+                # determine fitness of each genome, then speciate each genome
                 genome.fitness = fitness_function(genome)
-                print("gen{0}: {1}".format(gen, genome.fitness))
-                # speciate each genome
+                ave_fitness += genome.fitness/len(self.genomes)
                 if len(self.species) == 0:
                     self.species.append([genome])
                 else:
@@ -204,6 +209,7 @@ class NEATModel:
                             break
                     if not found_species:
                         self.species.append([genome])
+            print("gen{0} {1}".format(gen,ave_fitness))
             # determine which genomes are suitable for crossover
             suitable_genomes = []
             for species in self.species:

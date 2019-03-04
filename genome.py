@@ -3,7 +3,7 @@ import random
 import math
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.5, weight_randomize=0.1, neuron_mutation=0.5, connection_mutation=0.05):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.3, weight_randomize=0.1, neuron_mutation=0.05, connection_mutation=0.05):
         self.fitness = 0
         # chances of the 4 different mutations
         self.weight_mutation = weight_mutation
@@ -51,6 +51,7 @@ class Genome:
             return softmax_output
         else:
             val = self.outputs[0].get_value()
+            self.outputs[0].lookup_table = {}
             return [(math.e ** val)/(1 + math.e ** val)]
 
     # mutates this genome, either through connection weight or topology

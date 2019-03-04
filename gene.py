@@ -7,21 +7,36 @@ class NeuronGene:
         self.layer = layer
         self.value = 0
         self.in_connections = []
+        self.lookup_table = {}
+
     def add_connection(self, conn):
         self.in_connections.append(conn)
+
+    # stack used to calculate the value of the output neurons
     def get_value(self):
         valid_connections = list(filter(lambda x: x.expressed, self.in_connections))
-        if len(valid_connections) == 0:
-            return self.value
-        self.value = 0
+        node_stack = []
+        activation = 0
         for conn in valid_connections:
-            self.value += conn.weight * conn.in_neuron.get_value()
-        return self.value
+            node_stack.append((conn, 1.0)) # tuples are (connection_gene, multiplier)
+        while len(node_stack) > 0:
+            current_node = node_stack.pop()
+            connection_gene = current_node[0]
+            multiplier = current_node[1]
+            new_connections = list(filter(lambda x: x.expressed, conn.in_neuron.in_connections))
+            if len(new_connections) == 0:
+                activation += connection_gene.weight * connection_gene.in_neuron.value * multiplier
+            else:
+                for conn in new_connections:
+                    val = connection_gene.weight * multiplier
+                    node_stack.append((conn, connection_gene.weight * multiplier))
+        return activation
 
 class ConnectionGene:
     innovation_number = 1
     @classmethod
     def get_innovation_number(cls):
+        # class innovation number forces unique numbers for each connection gene
         return cls.innovation_number
     @classmethod
     def increment_innovation_number(cls):
@@ -39,7 +54,7 @@ class ConnectionGene:
         ConnectionGene.increment_innovation_number()
 
     def mutate_weight(self):
-        self.weight *= random.uniform(0.5, 1.5)
+        self.weight *= random.uniform(-1.5, 1.5)
 
     def randomize_weight(self):
         self.weight = random.uniform(-2, 2)
