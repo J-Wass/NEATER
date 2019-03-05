@@ -73,6 +73,9 @@ class NEATModel:
                 p2 = parent2.connection_genes[p2_gene_index]
                 # randomly choose one of the alleles if they are the same gene
                 if p1.innovation_number == p2.innovation_number:
+                    new_gene_expressed = True
+                    if not p1.expressed or not p2.expressed:
+                        new_gene_expressed = random.uniform(0,1) < 0.25
                     chosen_connection = random.choice([p1, p2])
                     in_neuron = None
                     out_neuron = None
@@ -89,13 +92,14 @@ class NEATModel:
                         neuron_genes[neuron_counter] = out_neuron
                         neuron_counter += 1
                     new_connection = ConnectionGene(in_neuron, out_neuron, chosen_connection.weight, chosen_connection.innovation_number)
+                    new_connection.expressed = new_gene_expressed
                     out_neuron.add_connection(new_connection)
                     connection_genes.append(new_connection)
                     p2_gene_index += 1
                     p1_gene_index += 1
 
                 # take a disjoint gene if parent is fitter
-                elif p1.innovation_number > p2.innovation_number and parent2.fitness > parent1.fitness:
+                elif p1.innovation_number > p2.innovation_number and parent2.fitness >= parent1.fitness:
                     in_neuron = None
                     out_neuron = None
                     if p2.in_neuron.id in neuron_genes:
@@ -140,7 +144,7 @@ class NEATModel:
                     else:
                         p1_gene_index += 1
             # take excess genes from more fit parent
-            while p1_gene_index < len(parent1.connection_genes) and parent1.fitness > parent2.fitness:
+            while p1_gene_index < len(parent1.connection_genes) and parent1.fitness >= parent2.fitness:
                 connection = parent1.connection_genes[p1_gene_index]
                 in_neuron = None
                 out_neuron = None
@@ -161,7 +165,7 @@ class NEATModel:
                 connection_genes.append(new_connection)
                 p1_gene_index += 1
 
-            while p2_gene_index < len(parent2.connection_genes) and parent2.fitness > parent1.fitness:
+            while p2_gene_index < len(parent2.connection_genes) and parent2.fitness >= parent1.fitness:
                 connection = parent2.connection_genes[p2_gene_index]
                 in_neuron = None
                 out_neuron = None
@@ -197,7 +201,7 @@ class NEATModel:
             self.species = []
             for genome in self.genomes:
                 # determine fitness of each genome, then speciate each genome
-                genome.fitness = fitness_function(genome)
+                genome.fitness = self.fitness_function(genome)
                 if genome.fitness > best_fitness:
                     best_fitness = genome.fitness
                     best_genome = genome
@@ -214,7 +218,7 @@ class NEATModel:
                     if not found_species:
                         self.species.append([genome])
             #print("\n\n--species ({0})-- {1}".format(len(self.species),"\n".join(str(s) for s in self.species)))
-            print("gen{0} best fitness: {1}| From:\n{2}".format(gen,best_fitness,best_genome))
+            print("gen{0} best fitness: {1}".format(gen,best_fitness))
             # determine which genomes are suitable for crossover
             suitable_genomes = []
             for species in self.species:

@@ -38,7 +38,6 @@ class Genome:
         for i in inputs:
             total_exponentiated_value += math.e ** i
         return list(map(lambda x: (math.e ** x)/total_exponentiated_value ,inputs))
-
     def activate(self, input_list):
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
@@ -46,7 +45,7 @@ class Genome:
         total_exponentiated_output = 0
         softmax_inputs = Genome.softmax(input_list)
         for i in range(len(self.inputs)):
-            self.inputs[i].value = softmax_inputs[i]
+            self.inputs[i].value = input_list[i]
         #TODO: this softmax equation should probably be stabilized
         if len(self.outputs) > 1:
             for neuron in self.outputs:
@@ -54,8 +53,7 @@ class Genome:
             return Genome.softmax(output)
         else:
             val = self.outputs[0].get_value()
-            self.outputs[0].lookup_table = {} # resets the stack used for get_value()
-            return [(math.e ** val)/(1 + math.e ** val)]
+            return [val]
 
     # mutates this genome, either through connection weight or topology
     def mutate(self):
@@ -71,23 +69,24 @@ class Genome:
         if random.uniform(0,1) < self.neuron_mutation:
             # choose a random connection to mutate into this new neuron
             valid_connections = list(filter(lambda x: x.expressed, self.connection_genes))
-            mutated_connection = random.choice(valid_connections)
-            in_neuron = mutated_connection.in_neuron
-            out_neuron = mutated_connection.out_neuron
+            if len(valid_connections) > 0:
+                mutated_connection = random.choice(valid_connections)
+                in_neuron = mutated_connection.in_neuron
+                out_neuron = mutated_connection.out_neuron
 
-            # calculate which layer this new neuron is in, create new connections and neuron
-            new_neuron_id = len(self.neuron_genes.values())
-            new_neuron_layer = (in_neuron.layer + out_neuron.layer)/2
-            new_neuron = NeuronGene(new_neuron_id, new_neuron_layer)
+                # calculate which layer this new neuron is in, create new connections and neuron
+                new_neuron_id = len(self.neuron_genes.values())
+                new_neuron_layer = (in_neuron.layer + out_neuron.layer)/2
+                new_neuron = NeuronGene(new_neuron_id, new_neuron_layer)
 
-            conn1 = ConnectionGene(in_neuron=in_neuron,out_neuron=new_neuron, weight=1)
-            conn2 = ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight)
-            new_neuron.add_connection(conn1)
-            out_neuron.add_connection(conn2)
-            self.neuron_genes[new_neuron_id] = new_neuron
-            self.connection_genes.append(conn1)
-            self.connection_genes.append(conn2)
-            mutated_connection.disable()
+                conn1 = ConnectionGene(in_neuron=in_neuron,out_neuron=new_neuron, weight=1)
+                conn2 = ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight)
+                new_neuron.add_connection(conn1)
+                out_neuron.add_connection(conn2)
+                self.neuron_genes[new_neuron_id] = new_neuron
+                self.connection_genes.append(conn1)
+                self.connection_genes.append(conn2)
+                mutated_connection.disable()
 
         # chance of adding a new connection
         if random.uniform(0,1) < self.connection_mutation:
