@@ -15,20 +15,53 @@ class NeuronGene:
     def add_connection(self, conn):
         self.in_connections.append(conn)
 
-    # convert this into an iterative function
+    # iteratively get value of output neurons
     def get_value(self):
         # squeezes numbers to be sharply between 0 and 1
         def sigmoid5(num):
             return 1/(1+math.e ** (-5 * num))
+        SIGMOID = -1000
         valid_connections = list(filter(lambda x: x.expressed, self.in_connections))
-        if self.is_input:
-            return self.value
-        self.value = 0
+        call_stack = []
+        value_stack = [0]
+        call_stack.append(1) # final sigmoid doesn't have a weight
+        call_stack.append(SIGMOID)
+        call_stack.append(self.bias)
+        # add initial connections to stack from root node
         for conn in valid_connections:
-            self.value += conn.weight * conn.in_neuron.get_value()
-        self.value += self.bias
-        self.value = sigmoid5(self.value)
-        return self.value
+            call_stack.append((conn.in_neuron, conn.weight))
+        # run call stack
+        while len(call_stack) > 0:
+            #print(call_stack)
+            #print(value_stack)
+            #print("------\n\n\n")
+            top = call_stack.pop()
+            # at sigmoid, take sigmoid of values and return to stack
+            if top == SIGMOID:
+                weight = call_stack.pop()
+                value = value_stack.pop()
+                call_stack.append(weight * sigmoid5(value))
+            # at tuple(neuron,weight), break into children
+            elif type(top) is tuple:
+                weight = top[1]
+                neuron = top[0]
+                if neuron.is_input:
+                    call_stack.append(neuron.value * weight)
+                else:
+                    valid_connections = list(filter(lambda x: x.expressed, neuron.in_connections))
+                    call_stack.append(weight)
+                    call_stack.append(SIGMOID)
+                    call_stack.append(neuron.bias)
+                    value_stack.append(0)
+                    for conn in valid_connections:
+                        call_stack.append((conn.in_neuron, conn.weight))
+            # at number, simply add to value
+            else:
+                if len(value_stack) == 0:
+                    return top
+                value = value_stack.pop()
+                value_stack.append(top+value)
+        return top
 
     def mutate_bias(self):
         # we don't add biases to input neurons around these parts

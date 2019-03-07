@@ -1,6 +1,6 @@
 from neat import NEATModel
 
-# individual is an instance of genome.Genome 
+# individual is an instance of genome.Genome
 def test_xor(individual):
     #print(individual)
     fitness = 4.0
@@ -18,4 +18,4 @@ def test_xor(individual):
     return fitness
 
 model = NEATModel(population_size=300, input_size=2, output_size=1)
-model.run(generations=40, fitness_function=test_xor)
+model.run(generations=50, fitness_function=test_xor)
