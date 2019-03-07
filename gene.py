@@ -3,13 +3,14 @@ import math
 
 # connection gene that describes the weight between two neurons
 class NeuronGene:
-    def __init__(self, id, layer, bias = 0):
+    def __init__(self, id, layer, bias = 0, is_input = False):
         self.id = id
         self.layer = layer
-        self.value = 0
+        self.value = None
         self.bias = bias
         self.in_connections = []
         self.lookup_table = {}
+        self.is_input = is_input
 
     def add_connection(self, conn):
         self.in_connections.append(conn)
@@ -20,7 +21,7 @@ class NeuronGene:
         def sigmoid5(num):
             return 1/(1+math.e ** (-5 * num))
         valid_connections = list(filter(lambda x: x.expressed, self.in_connections))
-        if len(valid_connections) == 0:
+        if self.is_input:
             return self.value
         self.value = 0
         for conn in valid_connections:
@@ -30,7 +31,9 @@ class NeuronGene:
         return self.value
 
     def mutate_bias(self):
-        self.bias += random.uniform(-1.5,1.5)
+        # we don't add biases to input neurons around these parts
+        if len(self.in_connections) > 0:
+            self.bias += random.uniform(-1.5,1.5)
 
 class ConnectionGene:
     innovation_number = 1

@@ -3,7 +3,7 @@ import random
 import math
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.2, weight_randomize=0.1, neuron_mutation=0.05, connection_mutation=0.05):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.8, weight_randomize=0.1, neuron_mutation=0.03, connection_mutation=0.05):
         self.fitness = 0
         # chances of the 4 different mutations
         self.weight_mutation = weight_mutation
@@ -17,7 +17,7 @@ class Genome:
         self.inputs = []
         self.outputs = []
         for i in range(num_inputs):
-            neuron = NeuronGene(id=i, layer=0)
+            neuron = NeuronGene(id=i, layer=0, is_input=True)
             self.neuron_genes[i] = neuron
             self.inputs.append(neuron)
         for o in range(num_outputs):
@@ -38,12 +38,14 @@ class Genome:
         for i in inputs:
             total_exponentiated_value += math.e ** i
         return list(map(lambda x: (math.e ** x)/total_exponentiated_value ,inputs))
+    # squeezes numbers to be sharply between 0 and 1
+    @staticmethod
+    def sigmoid5(num):
+        return 1/(1+math.e ** (-5 * num))
     def activate(self, input_list):
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
         output = []
-        total_exponentiated_output = 0
-        softmax_inputs = Genome.softmax(input_list)
         for i in range(len(self.inputs)):
             self.inputs[i].value = input_list[i]
         #TODO: this softmax equation should probably be stabilized
@@ -52,7 +54,14 @@ class Genome:
                 output.append(neuron.get_value())
             return Genome.softmax(output)
         else:
+            #print(list(map(lambda x: x.value, self.neuron_genes.values())))
+            #print(list(map(lambda x: x.expressed, self.connection_genes)))
+            single_output = self.outputs[0]
+            if len(list(filter(lambda x: x.expressed, single_output.in_connections))) == 0:
+                return [Genome.sigmoid5(single_output.bias)]
             val = self.outputs[0].get_value()
+            for neuron_gene in self.neuron_genes.values():
+                neuron_gene.value = None
             return [val]
 
     # mutates this genome, either through connection weight or topology
@@ -109,10 +118,16 @@ class Genome:
                 neuron.mutate_bias()
 
     def __repr__(self):
-        ret_string = '-----\n({0})\n Neurons: | '.format(self.fitness)
+        ret_string = '\n-----\nFitness={0}\nNeurons:\n'.format(self.fitness)
         for neuron in self.neuron_genes.values():
-            ret_string += "id{0}: {1} (bias={2}) | ".format(neuron.id, neuron.layer,neuron.bias)
-        ret_string += "\nConnections: | "
+            ret_string += "\tid{0}: layer={1} bias={2}\n".format(neuron.id, neuron.layer,neuron.bias)
+        ret_string += "\nConnections:\n"
         for connection in self.connection_genes:
-            ret_string += "{0}: {1}->{2} ({3}) [expressed={4}] | ".format(connection.innovation_number, connection.in_neuron.id, connection.out_neuron.id, connection.weight, connection.expressed)
+            ret_string += "\tInnovation #{0}: id{1}->id{2} weight={3} expressed={4}\n".format(connection.innovation_number, connection.in_neuron.id, connection.out_neuron.id, connection.weight, connection.expressed)
         return ret_string
+
+    # so this is disgusting but I have to do this
+    # this genome is LESS THAN another genome if this genome has a GREATER fitness
+    # I do it this way because python's heap module is only a min heap for some reason???
+    def __lt__(self, other):
+        return self.fitness < other.fitness
