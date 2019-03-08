@@ -2,6 +2,7 @@ from genome import Genome
 from gene import NeuronGene, ConnectionGene
 import random
 import heapq
+import multiprocessing as mp
 
 class NEATModel:
     def __init__(self, population_size, input_size, output_size):
@@ -212,14 +213,24 @@ class NEATModel:
 
     def run(self, generations, fitness_function, species_threshold = 3.0):
         self.fitness_function = fitness_function
-        top = None
         for gen in range(generations):
+            print("--\nGen {0}\n--".format(gen))
             self.species = []
+            top = None
+            pool = mp.Pool()
+            # determine fitness (multiprocessing)
+            print("fitness")
             for genome in self.genomes:
-                # determine fitness of each genome, then speciate each genome
-                genome.fitness = self.fitness_function(genome)
-                if top is None or genome.fitness > top.fitness:
+                genome.fitness = pool.apply_async(self.fitness_function, args = (genome, )).get(timeout=100)
+                #genome.fitness = self.fitness_function(genome)
+                if top == None or genome.fitness > top.fitness:
                     top = genome
+            pool.close()
+            pool.join()
+            print(top.fitness)
+            # speciate
+            print("speciate")
+            for genome in self.genomes:
                 if len(self.species) == 0:
                     self.species.append([genome])
                 else:
@@ -232,8 +243,9 @@ class NEATModel:
                             break
                     if not found_species:
                         self.species.append([genome])
-            print(top.fitness)
             # determine which genomes are suitable for crossover
+            print("suitable")
+
             self.genome = []
             suitable_genomes = []
             for species in self.species:
@@ -250,6 +262,10 @@ class NEATModel:
             if len(suitable_genomes) == 0:
                 raise Exception("Population is too speciated, either lower mutation chances or increase speciation distances")
             # crossover and mutate
+            print("crossover")
+
             self.crossover(suitable_genomes)
+            print("mutate")
+
             for genome in self.genomes:
                 genome.mutate()

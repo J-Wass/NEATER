@@ -27,11 +27,13 @@ class NeuronGene:
         call_stack.append(1) # final sigmoid doesn't have a weight
         call_stack.append(SIGMOID)
         call_stack.append(self.bias)
+        count = 0
         # add initial connections to stack from root node
         for conn in valid_connections:
             call_stack.append((conn.in_neuron, conn.weight))
         # run call stack
         while len(call_stack) > 0:
+            count += 1
             #print(call_stack)
             #print(value_stack)
             #print("------\n\n\n")

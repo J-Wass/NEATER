@@ -6,7 +6,7 @@ def test_xor(individual):
     fitness = 4.0
     for x in range(2):
         for y in range(2):
-            act = individual.activate([x,y])[0]
+            act = individual.activate([float(x),float(y)])[0]
             try:
                 fitness -= (act - float(x^y)) ** 2
             except TypeError:
@@ -14,8 +14,8 @@ def test_xor(individual):
                 for gene in individual.neuron_genes.values():
                     print(gene.value)
             #print("{0} vs {1}".format(act, float(x^y)))
-    #print(fitness)
     return fitness
 
-model = NEATModel(population_size=300, input_size=2, output_size=1)
-model.run(generations=50, fitness_function=test_xor)
+if __name__ == '__main__':
+    model = NEATModel(population_size=100, input_size=2, output_size=1)
+    model.run(generations=5, fitness_function=test_xor)
