@@ -4,7 +4,7 @@ import math
 import tensorflow as tf
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.8, weight_randomize=0.1, neuron_mutation=0.03, connection_mutation=0.05):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.5, weight_randomize=0.1, neuron_mutation=0.03, connection_mutation=0.03):
         self.fitness = 0
         # chances of the 4 different mutations
         self.weight_mutation = weight_mutation
@@ -47,45 +47,59 @@ class Genome:
     def activate(self, input_list):
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
-        init_op = self.get_phenotype()
-        # start the session
-        with tf.Session() as sess:
-            sess.run(init_op)
-            output = []
-            feed = {}
+        count = 0
+        for input in self.inputs:
+            #print("{0} inputs".format(id(self)))
+            input.value = input_list[count]
+            count += 1
+        outputs = []
+        output_index = 0
+        for output in self.outputs:
+            #print("{0} outputs".format(id(self)))
+            SIGMOID = -1000
+            valid_connections = list(filter(lambda x: x.expressed, output.in_connections))
+            call_stack = []
+            value_stack = [0]
+            call_stack.append(1) # final sigmoid doesn't have a weight
+            call_stack.append(SIGMOID)
+            value_stack.append(output.bias)
             count = 0
-            for tensor in self.input_tensors:
-                feed[tensor] = input_list[count]
+            # add initial connections to stack from root node
+            for conn in valid_connections:
+                #print("{0} valids".format(id(self)))
+                call_stack.append((conn.in_neuron, conn.weight))
+            # run call stack
+            while len(call_stack) > 1:
+                #print("\n\n{0} callstack".format(id(self)))
+                #print(self)
                 count += 1
-            for out in self.outputs:
-                id = out.id
-                out_tensor = self.neuron_tensors[id]
-                output.append(sess.run(out_tensor, feed_dict=feed))
-        return output
-
-    def get_phenotype(self):
-        neuron_tensors = {}
-        input_tensors = {}
-        for i in self.inputs:
-            input_tensors[i.id] = tf.placeholder(tf.float32)
-        neurons = [x for x in self.neuron_genes.values() if x not in self.inputs]
-        neurons.sort(key=lambda x: x.layer)
-        for n in neurons:
-            sum_tensors = []
-            sum_tensors.append(tf.constant(float(n.bias),dtype=tf.float32))
-            for conn in n.in_connections:
-                target = conn.in_neuron
-                weight = tf.constant(float(conn.weight),dtype=tf.float32)
-                if target.id in input_tensors:
-                    sum_tensors.append(tf.multiply(weight, input_tensors[target.id]))
+                top = call_stack.pop()
+                # at sigmoid, take sigmoid of values and return to stack
+                if top == SIGMOID:
+                    #print("{0} sigmoid".format(id(self)))
+                    weight = call_stack.pop()
+                    value = value_stack.pop()
+                    prev_value = value_stack.pop()
+                    value_stack.append(prev_value + weight * Genome.sigmoid5(value))
+                # at tuple(neuron,weight), break into children
                 else:
-                    sum_tensors.append(tf.multiply(weight, neuron_tensors[target.id]))
-            total_tensor = tf.add_n(sum_tensors)
-            neuron_tensors[n.id] = tf.sigmoid(total_tensor)
-        init_op = tf.global_variables_initializer()
-        self.input_tensors = input_tensors.values()
-        self.neuron_tensors = neuron_tensors
-        return init_op
+                    #print("{0} tuple".format(id(self)))
+                    weight = top[1]
+                    neuron = top[0]
+                    if neuron.is_input:
+                        value = value_stack.pop()
+                        value_stack.append(value + neuron.value * weight)
+                    else:
+                        valid_connections = list(filter(lambda x: x.expressed, neuron.in_connections))
+                        call_stack.append(weight)
+                        call_stack.append(SIGMOID)
+                        value_stack.append(neuron.bias)
+                        for conn in valid_connections:
+                            #print("{0} inner valid".format(id(self)))
+
+                            call_stack.append((conn.in_neuron, conn.weight))
+            outputs.append(value_stack.pop())
+        return outputs
 
     # mutates this genome, either through connection weight or topology
     def mutate(self):
@@ -109,7 +123,7 @@ class Genome:
                 # calculate which layer this new neuron is in, create new connections and neuron
                 new_neuron_id = len(self.neuron_genes.values())
                 new_neuron_layer = (in_neuron.layer + out_neuron.layer)/2
-                new_neuron = NeuronGene(new_neuron_id, new_neuron_layer)
+                new_neuron = NeuronGene(id=new_neuron_id, layer=new_neuron_layer)
 
                 conn1 = ConnectionGene(in_neuron=in_neuron,out_neuron=new_neuron, weight=1)
                 conn2 = ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight)

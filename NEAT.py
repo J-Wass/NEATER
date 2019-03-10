@@ -44,8 +44,8 @@ class NEATModel:
     # helper function to perform genetic cross over
     # this is the worst function I have ever written
     def crossover(self, suitable_genomes):
-        population = 1
-        while population <= self.population_size:
+        while len(self.genomes) < self.population_size:
+            #print(len(self.genomes))
             chosen_species = random.choice(suitable_genomes)
             parents = [None,None]
             # if species has 1 population or by chance, perform interspecies crossover
@@ -57,12 +57,19 @@ class NEATModel:
                     new_species = random.choice(suitable_genomes)
                     parents[1] = random.choice(new_species)
                 else:
-                    parents = random.sample(chosen_species,2)
+                    try:
+                        parents = random.sample(chosen_species,2)
+                    except ValueError:
+                        print("\n\n\nchosen ():".format(len(chosen_species)))
+                        print(chosen_species)
+                        print("\n\n\nsuitable:")
+                        print(suitable_genomes)
+                        print("\n\n\ngenomes:")
+                        print(self.genomes)
             # usually just perform crossover from within your species
             else:
                 parents = random.sample(chosen_species,2)
 
-            population += 1
             parent1 = parents[0]
             parent2 = parents[1]
             p1_gene_index = 0
@@ -117,7 +124,7 @@ class NEATModel:
                     p1_gene_index += 1
 
                 # take a disjoint gene if parent is fitter
-                elif p1.innovation_number > p2.innovation_number and parent2.fitness >= parent1.fitness:
+                elif p1.innovation_number > p2.innovation_number and parent2.fitness > parent1.fitness:
                     in_neuron = None
                     out_neuron = None
                     if p2.in_neuron.id in neuron_genes:
@@ -209,63 +216,66 @@ class NEATModel:
             new_genome.outputs = outputs
             new_genome.neuron_genes = neuron_genes
             new_genome.connection_genes = connection_genes
+            connections = list(map(lambda x: (x.in_neuron.id, x.out_neuron.id),new_genome.connection_genes))
+            if(len(connections) != len(set(connections))):
+                print("\n\n\nError")
+                print(parent1)
+                print(parent2)
+                print(new_genome)
+                exit()
             self.genomes.append(new_genome)
 
-    def run(self, generations, fitness_function, species_threshold = 3.0):
+    def run(self, generations, fitness_function, species_threshold = 4.0):
         self.fitness_function = fitness_function
         for gen in range(generations):
             print("--\nGen {0}\n--".format(gen))
-            self.species = []
-            top = None
+            self.species.clear()
             pool = mp.Pool()
             # determine fitness (multiprocessing)
             print("fitness")
+            def timeerror(error):
+                print(error)
             for genome in self.genomes:
-                genome.fitness = pool.apply_async(self.fitness_function, args = (genome, )).get(timeout=100)
-                #genome.fitness = self.fitness_function(genome)
-                if top == None or genome.fitness > top.fitness:
-                    top = genome
+                # genomes clones from previous epochs already have their fitness
+                if genome.fitness == 0:
+                    try:
+                        genome.fitness = pool.apply_async(self.fitness_function, args = (genome, ), error_callback=timeerror).get(timeout=10)
+                    except:
+                        print(genome)
             pool.close()
             pool.join()
-            print(top.fitness)
+            print(max(self.genomes, key=lambda x: x.fitness).fitness)
             # speciate
-            print("speciate")
+            print("speciate #genomes-{0}".format(len(self.genomes)))
             for genome in self.genomes:
-                if len(self.species) == 0:
+                found_species = False
+                for species in self.species:
+                    dist = NEATModel.distance(genome, random.choice(species))
+                    #print(dist)
+                    if  dist < species_threshold:
+                        species.append(genome)
+                        found_species = True
+                        break
+                if not found_species:
                     self.species.append([genome])
-                else:
-                    found_species = False
-                    for species in self.species:
-                        dist = NEATModel.distance(genome, random.choice(species))
-                        if  dist < species_threshold:
-                            species.append(genome)
-                            found_species = True
-                            break
-                    if not found_species:
-                        self.species.append([genome])
             # determine which genomes are suitable for crossover
-            print("suitable")
+            print("suitable #species={0}".format(len(self.species)))
 
-            self.genome = []
+            self.genomes.clear()
             suitable_genomes = []
             for species in self.species:
                 # use a heap to get the top individuals in each species
                 if len(species) == 1:
-                    best_one = heapq.nlargest(1, species, key=lambda x: float(x.fitness))
-                    self.genomes.append(best_one[0])
-                    suitable_genomes.append(best_one)
+                    self.genomes.append(species[0])
+                    suitable_genomes.append([species[0]])
                 else:
                     best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
                     suitable_genomes.append(best_of_species)
                     self.genomes.append(best_of_species[0])
 
-            if len(suitable_genomes) == 0:
-                raise Exception("Population is too speciated, either lower mutation chances or increase speciation distances")
             # crossover and mutate
             print("crossover")
-
             self.crossover(suitable_genomes)
             print("mutate")
-
             for genome in self.genomes:
                 genome.mutate()
