@@ -3,12 +3,14 @@ from gene import NeuronGene, ConnectionGene
 import random
 import heapq
 import multiprocessing as mp
+import traceback
 
 class NEATModel:
     def __init__(self, population_size, input_size, output_size):
         self.genomes = []
         self.population_size = population_size
         self.species = []
+        self.elitism = 5
         for g in range(self.population_size):
             new_genome = Genome(num_inputs=input_size, num_outputs=output_size)
             new_genome.mutate()
@@ -42,176 +44,88 @@ class NEATModel:
         return dist
 
     # helper function to perform genetic cross over
-    # this is the worst function I have ever written
     def crossover(self, suitable_genomes):
-        while len(self.genomes) < self.population_size:
-            #print(len(self.genomes))
-            chosen_species = random.choice(suitable_genomes)
-            parents = [None,None]
-            # if species has 1 population or by chance, perform interspecies crossover
-            if random.uniform(0,1) < 0.01 or len(chosen_species) == 1:
-                # if another species is available, perform interspecies crossover
-                if len(suitable_genomes) > 1:
-                    parents[0] = random.choice(chosen_species)
-                    suitable_genomes.remove(chosen_species)
-                    new_species = random.choice(suitable_genomes)
-                    parents[1] = random.choice(new_species)
-                else:
-                    try:
-                        parents = random.sample(chosen_species,2)
-                    except ValueError:
-                        print("\n\n\nchosen ():".format(len(chosen_species)))
-                        print(chosen_species)
-                        print("\n\n\nsuitable:")
-                        print(suitable_genomes)
-                        print("\n\n\ngenomes:")
-                        print(self.genomes)
-            # usually just perform crossover from within your species
+        while len(self.genomes) < self.population_size - self.elitism:
+            parent1 = None
+            parent2 = None
+            # interspecies crossover if this species is too small or by random chance
+            if len(suitable_genomes) > 1 and random.uniform(0,1) < 0.01:
+                species = random.sample(suitable_genomes,2)
+                parent1 = random.choice(species[0])
+                parent2 = random.choice(species[1])
+            # inner-species crossover
             else:
-                parents = random.sample(chosen_species,2)
-
-            parent1 = parents[0]
-            parent2 = parents[1]
-            p1_gene_index = 0
-            p2_gene_index = 0
-            connection_genes = []
-            neuron_genes = {}
+                chosen_species = random.choice(suitable_genomes)
+                if len(chosen_species) > 1:
+                    parents = random.sample(chosen_species, 2)
+                    parent1 = parents[0]
+                    parent2 = parents[1]
+                else:
+                    continue
+            index1 = 0
+            index2 = 0
+            conn1 = parent1.connection_genes
+            conn2 = parent2.connection_genes
             inputs = []
             outputs = []
-            neuron_counter = 0
-
-            # add initial neuron genes
-            for i in parent1.inputs:
-                neuron = NeuronGene(id=neuron_counter,layer = 0, is_input=True)
-                neuron_genes[neuron_counter] = neuron
-                inputs.append(neuron)
-                neuron_counter += 1
-            for o in parent1.outputs:
-                neuron = NeuronGene(id=neuron_counter,layer = 1)
-                neuron_genes[neuron_counter] = neuron
-                outputs.append(neuron)
-                neuron_counter += 1
-
-            # add all connection genes and added neurons
-            while p1_gene_index < len(parent1.connection_genes) and p2_gene_index < len(parent2.connection_genes):
-                p1 = parent1.connection_genes[p1_gene_index]
-                p2 = parent2.connection_genes[p2_gene_index]
-                # randomly choose one of the alleles if they are the same gene
-                if p1.innovation_number == p2.innovation_number:
-                    new_gene_expressed = True
-                    if not p1.expressed or not p2.expressed:
-                        new_gene_expressed = random.uniform(0,1) < 0.25
-                    chosen_connection = random.choice([p1, p2])
-                    in_neuron = None
-                    out_neuron = None
-                    if chosen_connection.in_neuron.id in neuron_genes:
-                        in_neuron = neuron_genes[chosen_connection.in_neuron.id]
-                    else:
-                        in_neuron = NeuronGene(id=neuron_counter, layer=chosen_connection.in_neuron.layer, bias=chosen_connection.in_neuron.bias)
-                        neuron_genes[neuron_counter] = in_neuron
-                        neuron_counter += 1
-                    if chosen_connection.out_neuron.id in neuron_genes:
-                        out_neuron = neuron_genes[chosen_connection.out_neuron.id]
-                    else:
-                        out_neuron = NeuronGene(id=neuron_counter, layer=chosen_connection.out_neuron.layer, bias=chosen_connection.out_neuron.bias)
-                        neuron_genes[neuron_counter] = out_neuron
-                        neuron_counter += 1
-                    new_connection = ConnectionGene(in_neuron, out_neuron, chosen_connection.weight, chosen_connection.innovation_number)
-                    new_connection.expressed = new_gene_expressed
-                    out_neuron.add_connection(new_connection)
-                    connection_genes.append(new_connection)
-                    p2_gene_index += 1
-                    p1_gene_index += 1
-
-                # take a disjoint gene if parent is fitter
-                elif p1.innovation_number > p2.innovation_number and parent2.fitness > parent1.fitness:
-                    in_neuron = None
-                    out_neuron = None
-                    if p2.in_neuron.id in neuron_genes:
-                        in_neuron = neuron_genes[p2.in_neuron.id]
-                    else:
-                        in_neuron = NeuronGene(id=neuron_counter, layer=p2.in_neuron.layer, bias=p2.in_neuron.bias)
-                        neuron_genes[neuron_counter] = in_neuron
-                        neuron_counter += 1
-                    if p2.out_neuron.id in neuron_genes:
-                        out_neuron = neuron_genes[p2.out_neuron.id]
-                    else:
-                        out_neuron = NeuronGene(id=neuron_counter, layer=p2.out_neuron.layer, bias=p2.out_neuron.bias)
-                        neuron_genes[neuron_counter] = out_neuron
-                        neuron_counter += 1
-                    new_connection = ConnectionGene(in_neuron, out_neuron, p2.weight, p2.innovation_number)
-                    out_neuron.add_connection(new_connection)
-                    connection_genes.append(new_connection)
-                    p2_gene_index += 1
-                elif parent1.fitness > parent2.fitness:
-                    in_neuron = None
-                    out_neuron = None
-                    if p1.in_neuron.id in neuron_genes:
-                        in_neuron = neuron_genes[p1.in_neuron.id]
-                    else:
-                        in_neuron = NeuronGene(id=neuron_counter,layer=p1.in_neuron.layer, bias=p1.in_neuron.bias)
-                        neuron_genes[neuron_counter] = in_neuron
-                        neuron_counter += 1
-                    if p1.out_neuron.id in neuron_genes:
-                        out_neuron = neuron_genes[p1.out_neuron.id]
-                    else:
-                        out_neuron = NeuronGene(id=neuron_counter, layer=p1.out_neuron.layer, bias=p1.out_neuron.bias)
-                        neuron_genes[neuron_counter] = out_neuron
-                        neuron_counter += 1
-                    new_connection = ConnectionGene(in_neuron, out_neuron, p1.weight, p1.innovation_number)
-                    out_neuron.add_connection(new_connection)
-                    connection_genes.append(new_connection)
-                    p1_gene_index += 1
-                else:
-                    # gene is disjoint but not from fitter parent, just continue
-                    if p1.innovation_number > p2.innovation_number:
-                        p2_gene_index += 1
-                    else:
-                        p1_gene_index += 1
-            # take excess genes from more fit parent
-            while p1_gene_index < len(parent1.connection_genes) and parent1.fitness >= parent2.fitness:
-                connection = parent1.connection_genes[p1_gene_index]
+            connection_genes = []
+            neuron_genes = {}
+            # adds the connection gene, along with any required neuron genes
+            def add_to_genome(gene):
+                in_neuron_id = gene.in_neuron.id
+                out_neuron_id = gene.out_neuron.id
                 in_neuron = None
                 out_neuron = None
-                if connection.in_neuron.id in neuron_genes:
-                    in_neuron = neuron_genes[connection.in_neuron.id]
+                # add in_neuron if need be
+                if in_neuron_id in neuron_genes:
+                    in_neuron = neuron_genes[in_neuron_id]
                 else:
-                    in_neuron = NeuronGene(id=neuron_counter, layer=connection.in_neuron.layer, bias=connection.in_neuron.bias)
-                    neuron_genes[neuron_counter] = in_neuron
-                    neuron_counter += 1
-                if connection.out_neuron.id in neuron_genes:
-                    out_neuron = neuron_genes[connection.out_neuron.id]
+                    in_neuron = NeuronGene(id=gene.in_neuron.id, layer=gene.in_neuron.layer, bias=gene.in_neuron.bias, is_input = gene.in_neuron.is_input)
+                # add out_neuron if need be
+                if out_neuron_id in neuron_genes:
+                    out_neuron = neuron_genes[out_neuron_id]
                 else:
-                    out_neuron = NeuronGene(id=neuron_counter, layer=connection.out_neuron.layer, bias=connection.out_neuron.bias)
-                    neuron_genes[neuron_counter] = out_neuron
-                    neuron_counter += 1
-                new_connection = ConnectionGene(in_neuron, out_neuron, connection.weight, connection.innovation_number)
-                out_neuron.add_connection(new_connection)
-                connection_genes.append(new_connection)
-                p1_gene_index += 1
+                    out_neuron = NeuronGene(id=gene.out_neuron.id, layer=gene.out_neuron.layer, bias=gene.out_neuron.bias,  is_output = gene.out_neuron.is_output)
+                conn = ConnectionGene(in_neuron, out_neuron, gene.weight, gene.innovation_number)
+                out_neuron.add_connection(conn)
+                connection_genes.append(conn)
+                neuron_genes[in_neuron_id] = in_neuron
+                neuron_genes[out_neuron_id] = out_neuron
+                if in_neuron.is_input and in_neuron not in inputs:
+                    inputs.append(in_neuron)
+                if out_neuron.is_output and out_neuron not in outputs:
+                    outputs.append(out_neuron)
 
-            while p2_gene_index < len(parent2.connection_genes) and parent2.fitness >= parent1.fitness:
-                connection = parent2.connection_genes[p2_gene_index]
-                in_neuron = None
-                out_neuron = None
-                if connection.in_neuron.id in neuron_genes:
-                    in_neuron = neuron_genes[connection.in_neuron.id]
+            while index1 < len(conn1) and index2 < len(conn2):
+                gene1 = conn1[index1]
+                gene2 = conn2[index2]
+                if gene1.innovation_number == gene2.innovation_number:
+                    chosen_gene = random.choice([gene1,gene2])
+                    add_to_genome(chosen_gene)
+                    index1 += 1
+                    index2 += 1
+                elif gene1.innovation_number < gene2.innovation_number:
+                    if parent1.fitness > parent2.fitness:
+                        add_to_genome(gene1)
+                    index1 += 1
                 else:
-                    in_neuron = NeuronGene(id=neuron_counter, layer=connection.in_neuron.layer, bias=connection.in_neuron.layer)
-                    neuron_genes[neuron_counter] = in_neuron
-                    neuron_counter += 1
-                if connection.out_neuron.id in neuron_genes:
-                    out_neuron = neuron_genes[connection.out_neuron.id]
-                else:
-                    out_neuron = NeuronGene(id=neuron_counter, layer=connection.out_neuron.layer, bias=connection.out_neuron.bias)
-                    neuron_genes[neuron_counter] = out_neuron
-                    neuron_counter += 1
-                new_connection = ConnectionGene(in_neuron, out_neuron, connection.weight, connection.innovation_number)
-                out_neuron.add_connection(new_connection)
-                connection_genes.append(new_connection)
-                p2_gene_index += 1
+                    if parent2.fitness > parent1.fitness:
+                        add_to_genome(gene2)
+                    index2 += 1
+            # clean up excess connection genes
+            while index1 < len(conn1):
+                gene1 = conn1[index1]
+                if parent1.fitness > parent2.fitness:
+                    add_to_genome(gene1)
+                index1 += 1
+            while index2 < len(conn2):
+                gene2 = conn2[index2]
+                if parent2.fitness > parent1.fitness:
+                    add_to_genome(gene2)
+                index2 += 1
+
             g = suitable_genomes[0][0]
-            new_genome = Genome(len(inputs), len(outputs), g.weight_mutation, g.weight_randomize, g.neuron_mutation, g.connection_mutation)
+            new_genome = Genome(len(inputs), len(outputs), g.weight_mutation, g.neuron_mutation, g.connection_mutation)
             new_genome.inputs = inputs
             new_genome.outputs = outputs
             new_genome.neuron_genes = neuron_genes
@@ -225,28 +139,30 @@ class NEATModel:
                 exit()
             self.genomes.append(new_genome)
 
-    def run(self, generations, fitness_function, species_threshold = 4.0):
+    def run(self, generations, fitness_function, species_threshold = 4.5):
         self.fitness_function = fitness_function
         for gen in range(generations):
             print("--\nGen {0}\n--".format(gen))
             self.species.clear()
             pool = mp.Pool()
             # determine fitness (multiprocessing)
-            print("fitness")
-            def timeerror(error):
-                print(error)
+            print("fitness #genomes: {0}".format(len(self.genomes)))
             for genome in self.genomes:
                 # genomes clones from previous epochs already have their fitness
-                if genome.fitness == 0:
-                    try:
-                        genome.fitness = pool.apply_async(self.fitness_function, args = (genome, ), error_callback=timeerror).get(timeout=10)
-                    except:
-                        print(genome)
+                try:
+                    genome.fitness = pool.apply_async(self.fitness_function, args = (genome, )).get(timeout=10)
+                    print(genome)
+                except Exception as e:
+                    print("fitness error")
+                    print(e)
+                    traceback.print_exc()
+                    print(genome)
             pool.close()
             pool.join()
-            print(max(self.genomes, key=lambda x: x.fitness).fitness)
+            maxi = max(self.genomes, key=lambda x: x.fitness)
+            print("top: {0}".format(maxi))
             # speciate
-            print("speciate #genomes-{0}".format(len(self.genomes)))
+            print("speciate")
             for genome in self.genomes:
                 found_species = False
                 for species in self.species:
@@ -261,21 +177,25 @@ class NEATModel:
             # determine which genomes are suitable for crossover
             print("suitable #species={0}".format(len(self.species)))
 
-            self.genomes.clear()
             suitable_genomes = []
+            top_genomes = heapq.nlargest(self.elitism, self.genomes, key=lambda x: float(x.fitness))
+            top_half_genomes = heapq.nlargest(int(len(self.genomes)/2), self.genomes, key=lambda x: float(x.fitness))
             for species in self.species:
-                # use a heap to get the top individuals in each species
-                if len(species) == 1:
-                    self.genomes.append(species[0])
-                    suitable_genomes.append([species[0]])
-                else:
+                if len(species) > 2:
                     best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
                     suitable_genomes.append(best_of_species)
-                    self.genomes.append(best_of_species[0])
+                if len(species) == 1:
+                    endangered_species = species[0]
+                    if endangered_species.fitness > top_half_genomes[int(len(self.genomes)/2)-1].fitness:
+                        suitable_genomes.append([endangered_species])
 
             # crossover and mutate
+            self.genomes.clear()
             print("crossover")
             self.crossover(suitable_genomes)
             print("mutate")
             for genome in self.genomes:
                 genome.mutate()
+            # add the best genomes unmutated
+            for genome in top_genomes:
+                self.genomes.append(genome)

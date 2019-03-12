@@ -2,14 +2,27 @@ import random
 import math
 # connection gene that describes the weight between two neurons
 class NeuronGene:
-    def __init__(self, id, layer, bias = 0, is_input = False):
-        self.id = id
+    global_id = 1
+    @classmethod
+    def get_global_id(cls):
+        return cls.global_id
+    @classmethod
+    def increment_global_id(cls):
+        cls.global_id += 1
+
+    def __init__(self, id=None, layer=0, bias = 0, is_input = False, is_output = False):
         self.layer = layer
         self.value = None
         self.bias = bias
         self.in_connections = []
         self.lookup_table = {}
         self.is_input = is_input
+        self.is_output = is_output
+        if id is None:
+            self.id = NeuronGene.get_global_id()
+        else:
+            self.id = id
+        NeuronGene.increment_global_id()
 
     def add_connection(self, conn):
         self.in_connections.append(conn)
@@ -17,14 +30,16 @@ class NeuronGene:
     def mutate_bias(self):
         # we don't add biases to input neurons around these parts
         if len(self.in_connections) > 0:
-            self.bias += random.uniform(-1.5,1.5)
+            self.bias += random.uniform(-0.5,0.5)
+
+    def __repr__(self):
+        ret_string = "\tid{0}: \n\tvalue={5} \n\tlayer={1} \n\tbias={2} \n\tinput={3} \n\toutput={4}\n\n".format(self.id, self.layer,self.bias, self.is_input, self.is_output, self.value)
+        return ret_string
 
 class ConnectionGene:
     innovation_number = 1
-
     @classmethod
     def get_innovation_number(cls):
-        # class innovation number forces unique numbers for each connection gene
         return cls.innovation_number
     @classmethod
     def increment_innovation_number(cls):
@@ -42,10 +57,10 @@ class ConnectionGene:
         ConnectionGene.increment_innovation_number()
 
     def mutate_weight(self):
-        self.weight *= random.uniform(-1.5, 1.5)
-
-    def randomize_weight(self):
-        self.weight = random.uniform(-2, 2)
+        self.weight *= random.uniform(0.5, 1.5)
+        # on rare occasion, flip sign of weight
+        if random.uniform(0,1) < 0.10:
+            self.weight = 0 - self.weight
 
     def disable(self):
         self.expressed = False

@@ -4,11 +4,10 @@ import math
 import tensorflow as tf
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.5, weight_randomize=0.1, neuron_mutation=0.03, connection_mutation=0.03):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.2, neuron_mutation=0.99, connection_mutation=0.99):
         self.fitness = 0
-        # chances of the 4 different mutations
+        # chances of the 3 different mutations
         self.weight_mutation = weight_mutation
-        self.weight_randomize = weight_randomize
         self.neuron_mutation = neuron_mutation
         self.connection_mutation = connection_mutation
 
@@ -22,7 +21,7 @@ class Genome:
             self.neuron_genes[i] = neuron
             self.inputs.append(neuron)
         for o in range(num_outputs):
-            neuron = NeuronGene(id=o+num_inputs, layer=1)
+            neuron = NeuronGene(id=o+num_inputs, layer=1, is_output=True)
             self.neuron_genes[o+num_inputs] = neuron
             self.outputs.append(neuron)
         # initialize connection genes with links from all inputs to all output
@@ -55,7 +54,6 @@ class Genome:
         outputs = []
         output_index = 0
         for output in self.outputs:
-            #print("{0} outputs".format(id(self)))
             SIGMOID = -1000
             valid_connections = list(filter(lambda x: x.expressed, output.in_connections))
             call_stack = []
@@ -66,24 +64,19 @@ class Genome:
             count = 0
             # add initial connections to stack from root node
             for conn in valid_connections:
-                #print("{0} valids".format(id(self)))
                 call_stack.append((conn.in_neuron, conn.weight))
             # run call stack
             while len(call_stack) > 1:
-                #print("\n\n{0} callstack".format(id(self)))
-                #print(self)
                 count += 1
                 top = call_stack.pop()
                 # at sigmoid, take sigmoid of values and return to stack
                 if top == SIGMOID:
-                    #print("{0} sigmoid".format(id(self)))
                     weight = call_stack.pop()
                     value = value_stack.pop()
                     prev_value = value_stack.pop()
                     value_stack.append(prev_value + weight * Genome.sigmoid5(value))
-                # at tuple(neuron,weight), break into children
+                # at tuple(neuron,weight), break neuron into children neuron
                 else:
-                    #print("{0} tuple".format(id(self)))
                     weight = top[1]
                     neuron = top[0]
                     if neuron.is_input:
@@ -95,8 +88,6 @@ class Genome:
                         call_stack.append(SIGMOID)
                         value_stack.append(neuron.bias)
                         for conn in valid_connections:
-                            #print("{0} inner valid".format(id(self)))
-
                             call_stack.append((conn.in_neuron, conn.weight))
             outputs.append(value_stack.pop())
         return outputs
@@ -106,10 +97,7 @@ class Genome:
         # chance of updating weights
         if random.uniform(0,1) < self.weight_mutation:
             for connection_gene in self.connection_genes:
-                if random.uniform(0,1) < self.weight_randomize:
                     connection_gene.mutate_weight()
-                else:
-                    connection_gene.randomize_weight()
 
         # chance of adding a new neuron
         if random.uniform(0,1) < self.neuron_mutation:
@@ -121,9 +109,9 @@ class Genome:
                 out_neuron = mutated_connection.out_neuron
 
                 # calculate which layer this new neuron is in, create new connections and neuron
-                new_neuron_id = len(self.neuron_genes.values())
                 new_neuron_layer = (in_neuron.layer + out_neuron.layer)/2
-                new_neuron = NeuronGene(id=new_neuron_id, layer=new_neuron_layer)
+                new_neuron = NeuronGene(layer=new_neuron_layer)
+                new_neuron_id = new_neuron.id
 
                 conn1 = ConnectionGene(in_neuron=in_neuron,out_neuron=new_neuron, weight=1)
                 conn2 = ConnectionGene(in_neuron=new_neuron, out_neuron=out_neuron, weight=mutated_connection.weight)
