@@ -18,5 +18,5 @@ def test_xor(individual):
     return fitness
 
 if __name__ == '__main__':
-    model = NEATModel(population_size=10, input_size=2, output_size=1)
-    model.run(generations=50, fitness_function=test_xor)
+    model = NEATModel(population_size=1000, input_size=2, output_size=1)
+    model.run(generations=200, fitness_function=test_xor)

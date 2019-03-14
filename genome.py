@@ -1,10 +1,9 @@
 from gene import ConnectionGene, NeuronGene
 import random
 import math
-import tensorflow as tf
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.2, neuron_mutation=0.99, connection_mutation=0.99):
+    def __init__(self, num_inputs, num_outputs, weight_mutation=0.8, neuron_mutation=0.03, connection_mutation=0.05):
         self.fitness = 0
         # chances of the 3 different mutations
         self.weight_mutation = weight_mutation
@@ -32,16 +31,14 @@ class Genome:
                 conn = ConnectionGene(in_neuron=self.neuron_genes[i], out_neuron=self.neuron_genes[o+num_inputs], weight=1, innovation_number=counter)
                 self.connection_genes.append(conn)
                 conn.out_neuron.add_connection(conn)
-    @staticmethod
-    def softmax(inputs):
-        total_exponentiated_value = 0
-        for i in inputs:
-            total_exponentiated_value += math.e ** i
-        return list(map(lambda x: (math.e ** x)/total_exponentiated_value ,inputs))
+
     # squeezes numbers to be sharply between 0 and 1
     @staticmethod
     def sigmoid5(num):
-        return 1/(1+math.e ** (-5 * num))
+        if num >= 0:
+            return 1/(1+math.e ** (-5 * num))
+        else:
+            return (math.e ** (5 * num)) / (1 + math.e ** (5 * num))
 
     def activate(self, input_list):
         if len(input_list) != len(self.inputs):
@@ -125,17 +122,21 @@ class Genome:
         # chance of adding a new connection
         if random.uniform(0,1) < self.connection_mutation:
             # choose a random neuron and attempt to connect to some neuron ahead of it
-            # if no neurons are ahead of this neuron, the mutate fails
-            in_neuron = random.choice(list(self.neuron_genes.values()))
-            possible_targets = list(filter(lambda x: x.layer > in_neuron.layer , self.neuron_genes.values()))
-            if len(possible_targets) > 0:
-                target = random.choice(possible_targets)
-                # if there is already a connection between these two neurons, the mutate fails
-                connection_genes = list(filter(lambda x: x.in_neuron == in_neuron and x.out_neuron == target, self.connection_genes))
-                if len(connection_genes) == 0:
-                    conn = ConnectionGene(in_neuron=in_neuron,out_neuron=target, weight=1)
-                    self.connection_genes.append(conn)
-                    target.add_connection(conn)
+            found_conn = False
+            for n in random.sample(list(self.neuron_genes.values()), len(self.neuron_genes.values())):
+                possible_targets = list(filter(lambda x: x.layer > n.layer , self.neuron_genes.values()))
+                if len(possible_targets) > 0:
+                    for t in possible_targets:
+                        conns = list(map(lambda x: x.in_neuron, t.in_connections))
+                        # make sure this connection doesn't exist
+                        if n not in conns:
+                            new_connection = ConnectionGene(in_neuron = n, out_neuron = t, weight=1)
+                            t.add_connection(new_connection)
+                            self.connection_genes.append(new_connection)
+                            found_conn = True
+                            break
+                if found_conn:
+                    break
 
         # chance of mutating a new neuron bias
         if random.uniform(0,1) < self.weight_mutation:

@@ -139,19 +139,18 @@ class NEATModel:
                 exit()
             self.genomes.append(new_genome)
 
-    def run(self, generations, fitness_function, species_threshold = 4.5):
+    def run(self, generations, fitness_function, species_threshold = 4.0):
         self.fitness_function = fitness_function
         for gen in range(generations):
             print("--\nGen {0}\n--".format(gen))
             self.species.clear()
             pool = mp.Pool()
             # determine fitness (multiprocessing)
-            print("fitness #genomes: {0}".format(len(self.genomes)))
+            #print("fitness #genomes: {0}".format(len(self.genomes)))
             for genome in self.genomes:
                 # genomes clones from previous epochs already have their fitness
                 try:
                     genome.fitness = pool.apply_async(self.fitness_function, args = (genome, )).get(timeout=10)
-                    print(genome)
                 except Exception as e:
                     print("fitness error")
                     print(e)
@@ -160,9 +159,17 @@ class NEATModel:
             pool.close()
             pool.join()
             maxi = max(self.genomes, key=lambda x: x.fitness)
+            if maxi.fitness > 3.9:
+                print("Solution found:")
+                print(maxi)
+                print("0,0 -> should be 0: {0}".format(maxi.activate([0,0])[0]))
+                print("0,1 -> should be 1: {0}".format(maxi.activate([0,1])[0]))
+                print("1,0 -> should be 1: {0}".format(maxi.activate([1,0])[0]))
+                print("1,1 -> should be 0: {0}".format(maxi.activate([0,0])[0]))
+                break
             print("top: {0}".format(maxi))
             # speciate
-            print("speciate")
+            #print("speciate")
             for genome in self.genomes:
                 found_species = False
                 for species in self.species:
@@ -175,11 +182,12 @@ class NEATModel:
                 if not found_species:
                     self.species.append([genome])
             # determine which genomes are suitable for crossover
-            print("suitable #species={0}".format(len(self.species)))
+            #print("suitable #species={0}".format(len(self.species)))
 
             suitable_genomes = []
             top_genomes = heapq.nlargest(self.elitism, self.genomes, key=lambda x: float(x.fitness))
             top_half_genomes = heapq.nlargest(int(len(self.genomes)/2), self.genomes, key=lambda x: float(x.fitness))
+            #print("threshhold: {0}".format(top_half_genomes[int(len(self.genomes)/2)-1].fitness))
             for species in self.species:
                 if len(species) > 2:
                     best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
@@ -191,9 +199,9 @@ class NEATModel:
 
             # crossover and mutate
             self.genomes.clear()
-            print("crossover")
+            #print("crossover")
             self.crossover(suitable_genomes)
-            print("mutate")
+            #print("mutate")
             for genome in self.genomes:
                 genome.mutate()
             # add the best genomes unmutated

@@ -1,6 +1,6 @@
 import random
 import math
-# connection gene that describes the weight between two neurons
+
 class NeuronGene:
     global_id = 1
     @classmethod
@@ -29,7 +29,7 @@ class NeuronGene:
 
     def mutate_bias(self):
         # we don't add biases to input neurons around these parts
-        if len(self.in_connections) > 0:
+        if not self.is_input:
             self.bias += random.uniform(-0.5,0.5)
 
     def __repr__(self):
