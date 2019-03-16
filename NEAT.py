@@ -2,17 +2,19 @@ from genome import Genome
 from gene import NeuronGene, ConnectionGene
 import random
 import heapq
-import multiprocessing as mp
-import traceback
+import configparser
 
 class NEATModel:
-    def __init__(self, population_size, input_size, output_size):
+    def __init__(self, config_file):
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        self.config = config
         self.genomes = []
-        self.population_size = population_size
+        self.population_size = int(self.config['Main']['Population Size'])
         self.species = []
-        self.elitism = 5
+        self.generational_talents = int(self.config['Speciation']['Generational Talents'])
         for g in range(self.population_size):
-            new_genome = Genome(num_inputs=input_size, num_outputs=output_size)
+            new_genome = Genome(self.config)
             new_genome.mutate()
             self.genomes.append(new_genome)
 
@@ -45,7 +47,7 @@ class NEATModel:
 
     # helper function to perform genetic cross over
     def crossover(self, suitable_genomes):
-        while len(self.genomes) < self.population_size - self.elitism:
+        while len(self.genomes) < self.population_size - self.generational_talents:
             parent1 = None
             parent2 = None
             # interspecies crossover if this species is too small or by random chance
@@ -124,70 +126,46 @@ class NEATModel:
                     add_to_genome(gene2)
                 index2 += 1
 
-            g = suitable_genomes[0][0]
-            new_genome = Genome(len(inputs), len(outputs), g.weight_mutation, g.neuron_mutation, g.connection_mutation)
+            new_genome = Genome(self.config)
             new_genome.inputs = inputs
             new_genome.outputs = outputs
             new_genome.neuron_genes = neuron_genes
             new_genome.connection_genes = connection_genes
             connections = list(map(lambda x: (x.in_neuron.id, x.out_neuron.id),new_genome.connection_genes))
-            if(len(connections) != len(set(connections))):
-                print("\n\n\nError")
-                print(parent1)
-                print(parent2)
-                print(new_genome)
-                exit()
             self.genomes.append(new_genome)
 
-    def run(self, generations, fitness_function, species_threshold = 4.0):
+    def run(self, fitness_function):
         self.fitness_function = fitness_function
-        for gen in range(generations):
-            print("--\nGen {0}\n--".format(gen))
+        species_threshold = float(self.config['Speciation']['Species Threshold'])
+        for gen in range(int(self.config['Main']['Number of Epochs'])):
+            print("--Gen {0}--".format(gen))
             self.species.clear()
-            pool = mp.Pool()
             # determine fitness (multiprocessing)
-            #print("fitness #genomes: {0}".format(len(self.genomes)))
+            best_genome = None
             for genome in self.genomes:
                 # genomes clones from previous epochs already have their fitness
-                try:
-                    genome.fitness = pool.apply_async(self.fitness_function, args = (genome, )).get(timeout=10)
-                except Exception as e:
-                    print("fitness error")
-                    print(e)
-                    traceback.print_exc()
-                    print(genome)
-            pool.close()
-            pool.join()
-            maxi = max(self.genomes, key=lambda x: x.fitness)
-            if maxi.fitness > 3.9:
-                print("Solution found:")
-                print(maxi)
-                print("0,0 -> should be 0: {0}".format(maxi.activate([0,0])[0]))
-                print("0,1 -> should be 1: {0}".format(maxi.activate([0,1])[0]))
-                print("1,0 -> should be 1: {0}".format(maxi.activate([1,0])[0]))
-                print("1,1 -> should be 0: {0}".format(maxi.activate([0,0])[0]))
-                break
-            print("top: {0}".format(maxi))
-            # speciate
-            #print("speciate")
+                    genome.fitness =self.fitness_function(genome)
+                    if best_genome is None or best_genome.fitness < genome.fitness:
+                        best_genome = genome
+            print("Best Individual Genome: {0}".format(best_genome))
+            if best_genome.fitness > float(self.config['Main']['Target Fitness']):
+                print("Solution found, target fitness reached.")
+                return best_genome
             for genome in self.genomes:
                 found_species = False
                 for species in self.species:
                     dist = NEATModel.distance(genome, random.choice(species))
-                    #print(dist)
                     if  dist < species_threshold:
                         species.append(genome)
                         found_species = True
                         break
                 if not found_species:
                     self.species.append([genome])
-            # determine which genomes are suitable for crossover
-            #print("suitable #species={0}".format(len(self.species)))
 
+            # determine which genomes are suitable for crossover
             suitable_genomes = []
-            top_genomes = heapq.nlargest(self.elitism, self.genomes, key=lambda x: float(x.fitness))
+            top_genomes = heapq.nlargest(int(self.generational_talents), self.genomes, key=lambda x: float(x.fitness))
             top_half_genomes = heapq.nlargest(int(len(self.genomes)/2), self.genomes, key=lambda x: float(x.fitness))
-            #print("threshhold: {0}".format(top_half_genomes[int(len(self.genomes)/2)-1].fitness))
             for species in self.species:
                 if len(species) > 2:
                     best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
@@ -199,11 +177,10 @@ class NEATModel:
 
             # crossover and mutate
             self.genomes.clear()
-            #print("crossover")
             self.crossover(suitable_genomes)
-            #print("mutate")
             for genome in self.genomes:
                 genome.mutate()
+
             # add the best genomes unmutated
             for genome in top_genomes:
                 self.genomes.append(genome)

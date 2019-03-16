@@ -3,18 +3,23 @@ import random
 import math
 
 class Genome:
-    def __init__(self, num_inputs, num_outputs, weight_mutation=0.8, neuron_mutation=0.03, connection_mutation=0.05):
+    def __init__(self, config):
         self.fitness = 0
+        self.config = config
+        mutations = self.config['Mutation']
         # chances of the 3 different mutations
-        self.weight_mutation = weight_mutation
-        self.neuron_mutation = neuron_mutation
-        self.connection_mutation = connection_mutation
+        self.weight_mutation = float(mutations['Weight Mutation'])
+        self.weight_randomization = float(mutations['Weight Randomization'])
+        self.neuron_mutation = float(mutations['Neuron Mutation'])
+        self.connection_mutation = float(mutations['Connection Mutation'])
 
         # genes that build the genotype
         self.connection_genes = []
         self.neuron_genes = {}
         self.inputs = []
         self.outputs = []
+        num_inputs = int(self.config['Main']['Number of Inputs'])
+        num_outputs = int(self.config['Main']['Number of Outputs'])
         for i in range(num_inputs):
             neuron = NeuronGene(id=i, layer=0, is_input=True)
             self.neuron_genes[i] = neuron
@@ -34,11 +39,11 @@ class Genome:
 
     # squeezes numbers to be sharply between 0 and 1
     @staticmethod
-    def sigmoid5(num):
+    def sigmoid5(num, sensitivity):
         if num >= 0:
-            return 1/(1+math.e ** (-5 * num))
+            return 1/(1+math.e ** (-1 * sensitivity * num))
         else:
-            return (math.e ** (5 * num)) / (1 + math.e ** (5 * num))
+            return (math.e ** (sensitivity * num)) / (1 + math.e ** (sensitivity * num))
 
     def activate(self, input_list):
         if len(input_list) != len(self.inputs):
@@ -71,7 +76,7 @@ class Genome:
                     weight = call_stack.pop()
                     value = value_stack.pop()
                     prev_value = value_stack.pop()
-                    value_stack.append(prev_value + weight * Genome.sigmoid5(value))
+                    value_stack.append(prev_value + weight * Genome.sigmoid5(value, sensitivity=float(self.config['Speciation']['Activity Sensitivity'])))
                 # at tuple(neuron,weight), break neuron into children neuron
                 else:
                     weight = top[1]
@@ -94,7 +99,7 @@ class Genome:
         # chance of updating weights
         if random.uniform(0,1) < self.weight_mutation:
             for connection_gene in self.connection_genes:
-                    connection_gene.mutate_weight()
+                    connection_gene.mutate_weight(randomization_chance=self.weight_randomization)
 
         # chance of adding a new neuron
         if random.uniform(0,1) < self.neuron_mutation:

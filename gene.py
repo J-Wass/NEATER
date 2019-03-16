@@ -56,11 +56,11 @@ class ConnectionGene:
             self.innovation_number = innovation_number
         ConnectionGene.increment_innovation_number()
 
-    def mutate_weight(self):
+    def mutate_weight(self, randomization_chance = 0.10):
         self.weight *= random.uniform(0.5, 1.5)
         # on rare occasion, flip sign of weight
-        if random.uniform(0,1) < 0.10:
-            self.weight = 0 - self.weight
+        if random.uniform(0,1) < randomization_chance:
+            self.weight = random.uniform(-2,2)
 
     def disable(self):
         self.expressed = False
