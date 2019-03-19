@@ -3,6 +3,12 @@ import random
 import math
 
 class Genome:
+    global_id = 0
+    @classmethod
+    def get_new_global_id(cls):
+        cls.global_id += 1
+        return cls.global_id
+
     def __init__(self, config):
         self.fitness = 0
         self.config = config
@@ -12,12 +18,16 @@ class Genome:
         self.weight_randomization = float(mutations['Weight Randomization'])
         self.neuron_mutation = float(mutations['Neuron Mutation'])
         self.connection_mutation = float(mutations['Connection Mutation'])
-
+        self.aggregation_mutation = float(mutations['Aggregation Mutation'])
+        self.aggregation_options = self.config['Activation']['Aggregation Options'].replace(' ','').split(",")
         # genes that build the genotype
         self.connection_genes = []
         self.neuron_genes = {}
         self.inputs = []
         self.outputs = []
+        self.id = Genome.get_new_global_id()
+        self.history = []
+
         num_inputs = int(self.config['Main']['Number of Inputs'])
         num_outputs = int(self.config['Main']['Number of Outputs'])
         for i in range(num_inputs):
@@ -37,65 +47,54 @@ class Genome:
                 self.connection_genes.append(conn)
                 conn.out_neuron.add_connection(conn)
 
-    # squeezes numbers to be sharply between 0 and 1
     @staticmethod
-    def sigmoid5(num, sensitivity):
+    def sigmoid(num, sensitivity):
         if num >= 0:
             return 1/(1+math.e ** (-1 * sensitivity * num))
         else:
             return (math.e ** (sensitivity * num)) / (1 + math.e ** (sensitivity * num))
 
+    # squeezes numbers to be sharply between 0 and 1
+    @staticmethod
+    def relu(num):
+        return max(0,num)
+
     def activate(self, input_list):
+        activation_function = self.config['Activation']['Activation Function']
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
+        value_dict = {}
         count = 0
         for input in self.inputs:
-            #print("{0} inputs".format(id(self)))
-            input.value = input_list[count]
+            value_dict[input.id] = input_list[count]
             count += 1
-        outputs = []
-        output_index = 0
-        for output in self.outputs:
-            SIGMOID = -1000
-            valid_connections = list(filter(lambda x: x.expressed, output.in_connections))
-            call_stack = []
-            value_stack = [0]
-            call_stack.append(1) # final sigmoid doesn't have a weight
-            call_stack.append(SIGMOID)
-            value_stack.append(output.bias)
-            count = 0
-            # add initial connections to stack from root node
+        neurons = list(self.neuron_genes.values())
+        neurons = sorted(list(filter(lambda x: not x.is_input, neurons)), key=lambda x: x.layer)
+        for neuron in neurons:
+            activation = neuron.bias
+            valid_connections = list(filter(lambda x: x.expressed, neuron.in_connections))
             for conn in valid_connections:
-                call_stack.append((conn.in_neuron, conn.weight))
-            # run call stack
-            while len(call_stack) > 1:
-                count += 1
-                top = call_stack.pop()
-                # at sigmoid, take sigmoid of values and return to stack
-                if top == SIGMOID:
-                    weight = call_stack.pop()
-                    value = value_stack.pop()
-                    prev_value = value_stack.pop()
-                    value_stack.append(prev_value + weight * Genome.sigmoid5(value, sensitivity=float(self.config['Speciation']['Activity Sensitivity'])))
-                # at tuple(neuron,weight), break neuron into children neuron
+                if neuron.aggregation == 'sum':
+                    activation += conn.weight * value_dict[conn.in_neuron.id]
                 else:
-                    weight = top[1]
-                    neuron = top[0]
-                    if neuron.is_input:
-                        value = value_stack.pop()
-                        value_stack.append(value + neuron.value * weight)
-                    else:
-                        valid_connections = list(filter(lambda x: x.expressed, neuron.in_connections))
-                        call_stack.append(weight)
-                        call_stack.append(SIGMOID)
-                        value_stack.append(neuron.bias)
-                        for conn in valid_connections:
-                            call_stack.append((conn.in_neuron, conn.weight))
-            outputs.append(value_stack.pop())
-        return outputs
+                    activation *= conn.weight * value_dict[conn.in_neuron.id]
+            if activation_function == 'sigmoid':
+                value_dict[neuron.id] = Genome.sigmoid(activation, sensitivity=float(self.config['Speciation']['Activity Sensitivity']))
+            elif activation_function == 'relu':
+                value_dict[neuron.id] = Genome.relu(activation)
+            else:
+                value_dict[neuron.id] = activation
+        output_ids = list(map(lambda x: x.id, self.outputs))
+        outputs = {k:v for (k,v) in value_dict.items() if k in output_ids}
+        return list(outputs.values())
 
     # mutates this genome, either through connection weight or topology
     def mutate(self):
+        # update aggregation option
+        if random.uniform(0,1) < self.aggregation_mutation:
+            for neuron_gene in self.neuron_genes.values():
+                if random.uniform(0,1) < 0.5:
+                    neuron_gene.aggregation = random.choice(self.aggregation_options)
         # chance of updating weights
         if random.uniform(0,1) < self.weight_mutation:
             for connection_gene in self.connection_genes:
@@ -128,13 +127,16 @@ class Genome:
         if random.uniform(0,1) < self.connection_mutation:
             # choose a random neuron and attempt to connect to some neuron ahead of it
             found_conn = False
-            for n in random.sample(list(self.neuron_genes.values()), len(self.neuron_genes.values())):
+            randomized_neurons = random.sample(list(self.neuron_genes.values()), len(self.neuron_genes.values()))
+            for n in randomized_neurons:
+                # greater layer implies further up the network
                 possible_targets = list(filter(lambda x: x.layer > n.layer , self.neuron_genes.values()))
                 if len(possible_targets) > 0:
                     for t in possible_targets:
-                        conns = list(map(lambda x: x.in_neuron, t.in_connections))
+                        conns = list(filter(lambda x: x.expressed, t.in_connections))
+                        in_neurons = list(map(lambda x: x.in_neuron, conns))
                         # make sure this connection doesn't exist
-                        if n not in conns:
+                        if n not in in_neurons:
                             new_connection = ConnectionGene(in_neuron = n, out_neuron = t, weight=1)
                             t.add_connection(new_connection)
                             self.connection_genes.append(new_connection)
@@ -151,7 +153,7 @@ class Genome:
     def __repr__(self):
         ret_string = '\n-----\nFitness={0}\nNeurons:\n'.format(self.fitness)
         for neuron in self.neuron_genes.values():
-            ret_string += "\tid{0}: layer={1} bias={2}\n".format(neuron.id, neuron.layer,neuron.bias)
+            ret_string += "\tid{0}: layer={1} bias={2} aggregation={3}\n".format(neuron.id, neuron.layer,neuron.bias,neuron.aggregation)
         ret_string += "\nConnections:\n"
         for connection in self.connection_genes:
             ret_string += "\tInnovation #{0}: id{1}->id{2} weight={3} expressed={4}\n".format(connection.innovation_number, connection.in_neuron.id, connection.out_neuron.id, connection.weight, connection.expressed)

@@ -10,7 +10,7 @@ class NeuronGene:
     def increment_global_id(cls):
         cls.global_id += 1
 
-    def __init__(self, id=None, layer=0, bias = 0, is_input = False, is_output = False):
+    def __init__(self, id=None, layer=0, bias = 0, is_input = False, is_output = False, aggregation = 'sum'):
         self.layer = layer
         self.value = None
         self.bias = bias
@@ -18,6 +18,7 @@ class NeuronGene:
         self.lookup_table = {}
         self.is_input = is_input
         self.is_output = is_output
+        self.aggregation = aggregation
         if id is None:
             self.id = NeuronGene.get_global_id()
         else:
@@ -33,7 +34,7 @@ class NeuronGene:
             self.bias += random.uniform(-0.5,0.5)
 
     def __repr__(self):
-        ret_string = "\tid{0}: \n\tvalue={5} \n\tlayer={1} \n\tbias={2} \n\tinput={3} \n\toutput={4}\n\n".format(self.id, self.layer,self.bias, self.is_input, self.is_output, self.value)
+        ret_string = "Id{0}: \n\tvalue={5} \n\tlayer={1} \n\tbias={2} \n\tinput={3} \n\toutput={4}\n\n".format(self.id, self.layer,self.bias, self.is_input, self.is_output, self.value)
         return ret_string
 
 class ConnectionGene:
@@ -64,3 +65,7 @@ class ConnectionGene:
 
     def disable(self):
         self.expressed = False
+
+    def __repr__(self):
+        ret_string = "Innovation{0}: \n\tin_neuron={1} \n\tout_neuron={1} \n\tweight={2} \n\texpressed={3} \n\n".format(self.innovation_number, self.in_neuron.id,self.out_neuron.id, self.weight, self.expressed)
+        return ret_string

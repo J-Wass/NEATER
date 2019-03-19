@@ -3,6 +3,7 @@ from gene import NeuronGene, ConnectionGene
 import random
 import heapq
 import configparser
+import time
 
 class NEATModel:
     def __init__(self, config_file):
@@ -13,37 +14,75 @@ class NEATModel:
         self.population_size = int(self.config['Main']['Population Size'])
         self.species = []
         self.generational_talents = int(self.config['Speciation']['Generational Talents'])
+        self.generation = 0
         for g in range(self.population_size):
             new_genome = Genome(self.config)
+            new_genome.history = [(new_genome.id,-1)]
             new_genome.mutate()
             self.genomes.append(new_genome)
 
-    # helper function to determine the "distance" between two genomes
-    @staticmethod
-    def distance(genome1, genome2):
-        disjoint_genes = 0
-        similar_genes = 0
-        similar_weight = 0
-        innovation_lookup = {}
-        genome1_conn = list(filter(lambda x: x.expressed, genome1.connection_genes))
-        genome2_conn = list(filter(lambda x: x.expressed, genome2.connection_genes))
-        for connection in list(set(genome1_conn) | set(genome2_conn)):
-            if connection.innovation_number in innovation_lookup:
-                disjoint_genes -= 1
-                similar_genes += 1
-                weight_difference = abs(innovation_lookup[connection.innovation_number] - connection.weight)
-                similar_weight += weight_difference
-            else:
-                innovation_lookup[connection.innovation_number] = connection.weight
-                disjoint_genes += 1
-        N = max(len(genome1.connection_genes), len(genome2.connection_genes))
-        # for small genomes, just use N = 1
-        if N < 20:
-            N = 1
-        dist = disjoint_genes / N
-        if similar_genes > 0:
-            dist += similar_weight / similar_genes * 0.5
-        return dist
+    def run(self, fitness_function):
+        self.fitness_function = fitness_function
+        species_threshold = float(self.config['Speciation']['Species Threshold'])
+        best_genome = None
+        for gen in range(int(self.config['Main']['Number of Epochs'])):
+            self.generation = gen
+            print("--Gen {0}--".format(gen))
+            self.species.clear()
+            # determine fitness (multiprocessing)
+            best_genome = None
+            old_time = time.time()
+            for genome in self.genomes:
+                    if genome.fitness == 0:
+                        genome.fitness = self.fitness_function(genome)
+                    if best_genome is None or best_genome.fitness < genome.fitness:
+                        best_genome = genome
+            print("Best: {0}".format(best_genome.fitness))
+            print("Fitness Time: {0}".format(time.time() - old_time))
+            if best_genome.fitness > float(self.config['Main']['Target Fitness']):
+                print("Solution found, target fitness reached.")
+                return best_genome
+            #speciate
+            old_time = time.time()
+            for genome in self.genomes:
+                found_species = False
+                for species in self.species:
+                    species_representative = random.choice(species)
+                    # if genome has a shared ancestor with a species representative from species
+                    if set(map(lambda x: x[0], species_representative.history)) & set(map(lambda x: x[0], genome.history)):
+                        species.append(genome)
+                        found_species = True
+                        break
+                if not found_species:
+                    self.species.append([genome])
+            print("Speciate: {0}".format(time.time() - old_time))
+            print("# species {0}".format(len(species)))
+            # determine which genomes are suitable for crossover
+            suitable_genomes = []
+            top_genomes = heapq.nlargest(int(self.generational_talents), self.genomes, key=lambda x: float(x.fitness))
+            top_half_genomes = heapq.nlargest(int(len(self.genomes)/2), self.genomes, key=lambda x: float(x.fitness))
+            for species in self.species:
+                if len(species) > 2:
+                    best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
+                    suitable_genomes.append(best_of_species)
+                if len(species) == 1:
+                    endangered_species = species[0]
+                    if endangered_species.fitness > top_half_genomes[int(len(self.genomes)/2)-1].fitness:
+                        suitable_genomes.append([endangered_species])
+            # crossover and mutate
+            old_time = time.time()
+            self.genomes.clear()
+            self.crossover(suitable_genomes)
+            print("Cross {0}".format(time.time() - old_time))
+            for genome in self.genomes:
+                genome.mutate()
+
+            old_time = time.time()
+            # add the best genomes unmutated
+            for genome in top_genomes:
+                self.genomes.append(genome)
+            print("Mutate: {0}".format(time.time() - old_time))
+        return best_genome
 
     # helper function to perform genetic cross over
     def crossover(self, suitable_genomes):
@@ -78,7 +117,7 @@ class NEATModel:
                 out_neuron_id = gene.out_neuron.id
                 in_neuron = None
                 out_neuron = None
-                # add in_neuron if need be
+                # add in_neuron not added yet
                 if in_neuron_id in neuron_genes:
                     in_neuron = neuron_genes[in_neuron_id]
                 else:
@@ -87,7 +126,7 @@ class NEATModel:
                 if out_neuron_id in neuron_genes:
                     out_neuron = neuron_genes[out_neuron_id]
                 else:
-                    out_neuron = NeuronGene(id=gene.out_neuron.id, layer=gene.out_neuron.layer, bias=gene.out_neuron.bias,  is_output = gene.out_neuron.is_output)
+                    out_neuron = NeuronGene(id=gene.out_neuron.id, layer=gene.out_neuron.layer, bias=gene.out_neuron.bias,  is_output = gene.out_neuron.is_output, aggregation=gene.out_neuron.aggregation)
                 conn = ConnectionGene(in_neuron, out_neuron, gene.weight, gene.innovation_number)
                 out_neuron.add_connection(conn)
                 connection_genes.append(conn)
@@ -131,56 +170,39 @@ class NEATModel:
             new_genome.outputs = outputs
             new_genome.neuron_genes = neuron_genes
             new_genome.connection_genes = connection_genes
+
+            # create individual's history, remove old history
+            history = parent1.history + parent2.history + [(new_genome.id,self.generation)]
+            # this part can be optimized
+            for history_entry in history:
+                if self.generation - history_entry[1] <= float(self.config['Speciation']['History Sensitivity']):
+                    new_genome.history.append(history_entry)
             connections = list(map(lambda x: (x.in_neuron.id, x.out_neuron.id),new_genome.connection_genes))
             self.genomes.append(new_genome)
 
-    def run(self, fitness_function):
-        self.fitness_function = fitness_function
-        species_threshold = float(self.config['Speciation']['Species Threshold'])
-        for gen in range(int(self.config['Main']['Number of Epochs'])):
-            print("--Gen {0}--".format(gen))
-            self.species.clear()
-            # determine fitness (multiprocessing)
-            best_genome = None
-            for genome in self.genomes:
-                # genomes clones from previous epochs already have their fitness
-                    genome.fitness =self.fitness_function(genome)
-                    if best_genome is None or best_genome.fitness < genome.fitness:
-                        best_genome = genome
-            print("Best Individual Genome: {0}".format(best_genome))
-            if best_genome.fitness > float(self.config['Main']['Target Fitness']):
-                print("Solution found, target fitness reached.")
-                return best_genome
-            for genome in self.genomes:
-                found_species = False
-                for species in self.species:
-                    dist = NEATModel.distance(genome, random.choice(species))
-                    if  dist < species_threshold:
-                        species.append(genome)
-                        found_species = True
-                        break
-                if not found_species:
-                    self.species.append([genome])
-
-            # determine which genomes are suitable for crossover
-            suitable_genomes = []
-            top_genomes = heapq.nlargest(int(self.generational_talents), self.genomes, key=lambda x: float(x.fitness))
-            top_half_genomes = heapq.nlargest(int(len(self.genomes)/2), self.genomes, key=lambda x: float(x.fitness))
-            for species in self.species:
-                if len(species) > 2:
-                    best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
-                    suitable_genomes.append(best_of_species)
-                if len(species) == 1:
-                    endangered_species = species[0]
-                    if endangered_species.fitness > top_half_genomes[int(len(self.genomes)/2)-1].fitness:
-                        suitable_genomes.append([endangered_species])
-
-            # crossover and mutate
-            self.genomes.clear()
-            self.crossover(suitable_genomes)
-            for genome in self.genomes:
-                genome.mutate()
-
-            # add the best genomes unmutated
-            for genome in top_genomes:
-                self.genomes.append(genome)
+    # helper function to determine the "distance" between two genomes
+    @staticmethod
+    def distance(genome1, genome2):
+        disjoint_genes = 0
+        similar_genes = 0
+        similar_weight = 0
+        innovation_lookup = {}
+        genome1_conn = list(filter(lambda x: x.expressed, genome1.connection_genes))
+        genome2_conn = list(filter(lambda x: x.expressed, genome2.connection_genes))
+        for connection in list(genome1_conn + genome2_conn):
+            if connection.innovation_number in innovation_lookup:
+                disjoint_genes -= 1
+                similar_genes += 1
+                weight_difference = abs(innovation_lookup[connection.innovation_number] - connection.weight)
+                similar_weight += weight_difference
+            else:
+                innovation_lookup[connection.innovation_number] = connection.weight
+                disjoint_genes += 1
+        N = max(len(genome1.connection_genes), len(genome2.connection_genes))
+        # for small genomes, just use N = 1
+        if N < 20:
+            N = 1
+        dist = disjoint_genes / N
+        if similar_genes > 0:
+            dist += similar_weight / similar_genes * 0.5
+        return dist
