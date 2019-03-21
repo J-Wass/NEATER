@@ -1,4 +1,5 @@
 from gene import ConnectionGene, NeuronGene
+from functools import reduce
 import random
 import math
 
@@ -26,7 +27,7 @@ class Genome:
         self.inputs = []
         self.outputs = []
         self.id = Genome.get_new_global_id()
-        self.history = []
+        self.history = {}
 
         num_inputs = int(self.config['Main']['Number of Inputs'])
         num_outputs = int(self.config['Main']['Number of Outputs'])
@@ -47,18 +48,7 @@ class Genome:
                 self.connection_genes.append(conn)
                 conn.out_neuron.add_connection(conn)
 
-    @staticmethod
-    def sigmoid(num, sensitivity):
-        if num >= 0:
-            return 1/(1+math.e ** (-1 * sensitivity * num))
-        else:
-            return (math.e ** (sensitivity * num)) / (1 + math.e ** (sensitivity * num))
-
-    # squeezes numbers to be sharply between 0 and 1
-    @staticmethod
-    def relu(num):
-        return max(0,num)
-
+    # activate output neurons
     def activate(self, input_list):
         activation_function = self.config['Activation']['Activation Function']
         if len(input_list) != len(self.inputs):
@@ -69,6 +59,7 @@ class Genome:
             value_dict[input.id] = input_list[count]
             count += 1
         neurons = list(self.neuron_genes.values())
+        # order neurons by layer so we can resolve the earlier neurons first
         neurons = sorted(list(filter(lambda x: not x.is_input, neurons)), key=lambda x: x.layer)
         for neuron in neurons:
             activation = neuron.bias
@@ -79,7 +70,7 @@ class Genome:
                 else:
                     activation *= conn.weight * value_dict[conn.in_neuron.id]
             if activation_function == 'sigmoid':
-                value_dict[neuron.id] = Genome.sigmoid(activation, sensitivity=float(self.config['Speciation']['Activity Sensitivity']))
+                value_dict[neuron.id] = Genome.sigmoid(activation, sensitivity=float(self.config['Activation']['Activation Sensitivity']))
             elif activation_function == 'relu':
                 value_dict[neuron.id] = Genome.relu(activation)
             else:
@@ -87,6 +78,86 @@ class Genome:
         output_ids = list(map(lambda x: x.id, self.outputs))
         outputs = {k:v for (k,v) in value_dict.items() if k in output_ids}
         return list(outputs.values())
+
+    def activate_old(self, input_list):
+        activation_function = self.config['Activation']['Activation Function']
+        if len(input_list) != len(self.inputs):
+            raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
+        count = 0
+        for input in self.inputs:
+            #print("{0} inputs".format(id(self)))
+            input.value = input_list[count]
+            count += 1
+        outputs = []
+        output_index = 0
+        for output in self.outputs:
+            AGGREGATE = -1000 # aggregation flag
+            valid_connections = list(filter(lambda x: x.expressed, output.in_connections))
+            call_stack = []
+            bias_stack = []
+            value_stack = [[],[]]
+            call_stack.append(1) # final sigmoid doesn't have a weight
+            call_stack.append(output.aggregation)
+            call_stack.append(AGGREGATE)
+            bias_stack.append(output.bias)
+            count = 0
+            # add initial connections to stack from root node
+            for conn in valid_connections:
+                call_stack.append((conn.in_neuron, conn.weight))
+            # run call stack
+            #print(self)
+            #print("starting")
+            while len(call_stack) > 1:
+                #print("call stack {0}".format(call_stack))
+                #print("value stack {0}".format(value_stack))
+                #print("bias stack {0}".format(bias_stack))
+
+                count += 1
+                top = call_stack.pop()
+                # at sigmoid, take sigmoid of values and return to stack
+                if top == AGGREGATE:
+                    operation = call_stack.pop()
+                    weight = call_stack.pop()
+                    bias = bias_stack.pop()
+                    value_arr = value_stack.pop()
+                    prev_value_arr = value_stack.pop()
+                    value = 0
+                    if operation == 'sum':
+                        value = sum(value_arr)
+                    elif operation == 'product':
+                        value = reduce((lambda x, y: x * y), value_arr)
+                    else:
+                        value = sum(value_arr)
+                    value += bias
+                    activation = self.config['Activation']['Activation Function']
+                    if activation == 'sigmoid':
+                        value = Genome.sigmoid(value, float(self.config['Activation']['Activation Sensitivity']))
+                    elif activation == 'relu':
+                        value = Genome.relu(value)
+                    else:
+                        value = value
+                    prev_value_arr.append(value)
+                    value_stack.append(prev_value_arr)
+                # at tuple(neuron,weight), break neuron into children neuron
+                else:
+                    neuron = top[0]
+                    weight = top[1]
+                    if neuron.is_input:
+                        value_arr = value_stack.pop()
+                        value_arr.append(neuron.value * weight)
+                        value_stack.append(value_arr)
+                    else:
+                        valid_connections = list(filter(lambda x: x.expressed, neuron.in_connections))
+                        call_stack.append(weight)
+                        call_stack.append(neuron.aggregation)
+                        call_stack.append(AGGREGATE)
+                        bias_stack.append(neuron.bias)
+                        value_stack.append([])
+                        for conn in valid_connections:
+                            call_stack.append((conn.in_neuron, conn.weight))
+            outputs.append(value_stack.pop()[0])
+            #print("out: {0}".format(outputs))
+        return outputs
 
     # mutates this genome, either through connection weight or topology
     def mutate(self):
@@ -149,6 +220,18 @@ class Genome:
         if random.uniform(0,1) < self.weight_mutation:
             for neuron in self.neuron_genes.values():
                 neuron.mutate_bias()
+
+    # activation function
+    @staticmethod
+    def sigmoid(num, sensitivity):
+        if num >= 0:
+            return 1/(1+math.e ** (-1 * sensitivity * num))
+        else:
+            return (math.e ** (sensitivity * num)) / (1 + math.e ** (sensitivity * num))
+
+    @staticmethod
+    def relu(num):
+        return max(0,num)
 
     def __repr__(self):
         ret_string = '\n-----\nFitness={0}\nNeurons:\n'.format(self.fitness)
