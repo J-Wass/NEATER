@@ -38,6 +38,7 @@ class NEATModel:
                     if best_genome is None or best_genome.fitness < genome.fitness:
                         best_genome = genome
             print("Best: {0}".format(best_genome.fitness))
+            print(len(best_genome.connection_genes))
             print("Fitness Time: {0}".format(time.time() - old_time))
             if best_genome.fitness > float(self.config['Main']['Target Fitness']):
                 print("Solution found, target fitness reached.")
@@ -51,9 +52,6 @@ class NEATModel:
                     species_history = [item for sublist in species_representative.history.values() for item in sublist]
                     genome_history = [item for sublist in genome.history.values() for item in sublist]
                     # if genome has a shared ancestor with a species representative from species
-                    #print('-------------')
-                    #print(species_representative.history.values())
-                    #print(genome.history.values())
                     if set(species_history) & set(genome_history):
                         species.append(genome)
                         found_species = True
@@ -66,9 +64,8 @@ class NEATModel:
             top_genomes = heapq.nlargest(int(self.generational_talents), self.genomes, key=lambda x: float(x.fitness))
             top_half_genomes = heapq.nlargest(int(len(self.genomes)/2), self.genomes, key=lambda x: float(x.fitness))
             for species in self.species:
-                if len(species) > 2:
+                if len(species) >= 2:
                     best_of_species = heapq.nlargest(int(len(species)/2), species, key=lambda x: float(x.fitness))
-
                     suitable_genomes.append(best_of_species)
                 if len(species) == 1:
                     endangered_species = species[0]

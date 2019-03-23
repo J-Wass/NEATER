@@ -49,7 +49,7 @@ class Genome:
                 conn.out_neuron.add_connection(conn)
 
     # activate output neurons
-    def activate(self, input_list):
+    def activate2(self, input_list):
         activation_function = self.config['Activation']['Activation Function']
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
@@ -79,7 +79,7 @@ class Genome:
         outputs = {k:v for (k,v) in value_dict.items() if k in output_ids}
         return list(outputs.values())
 
-    def activate_old(self, input_list):
+    def activate(self, input_list):
         activation_function = self.config['Activation']['Activation Function']
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
@@ -134,8 +134,7 @@ class Genome:
                         value = Genome.sigmoid(value, float(self.config['Activation']['Activation Sensitivity']))
                     elif activation == 'relu':
                         value = Genome.relu(value)
-                    else:
-                        value = value
+                    # don't do anything for identity
                     prev_value_arr.append(value)
                     value_stack.append(prev_value_arr)
                 # at tuple(neuron,weight), break neuron into children neuron
