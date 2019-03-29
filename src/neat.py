@@ -1,9 +1,10 @@
-from genome import Genome
-from gene import NeuronGene, ConnectionGene
+from src.genome import Genome
+from src.gene import NeuronGene, ConnectionGene
 import random
 import heapq
 import configparser
 import time
+from multiprocessing import Pool
 
 class NEATModel:
     def __init__(self, config_file):
@@ -29,22 +30,17 @@ class NEATModel:
             self.generation = gen
             print("--Gen {0}--".format(gen))
             self.species.clear()
-            # determine fitness (multiprocessing)
+            # determine fitness
             best_genome = None
-            old_time = time.time()
             for genome in self.genomes:
-                    if genome.fitness == 0:
-                        genome.fitness = self.fitness_function(genome)
+                    genome.fitness = self.fitness_function(genome)
                     if best_genome is None or best_genome.fitness < genome.fitness:
                         best_genome = genome
             print("Best: {0}".format(best_genome.fitness))
-            print(len(best_genome.connection_genes))
-            print("Fitness Time: {0}".format(time.time() - old_time))
-            if best_genome.fitness > float(self.config['Main']['Target Fitness']):
+            if best_genome.fitness >= float(self.config['Main']['Target Fitness']):
                 print("Solution found, target fitness reached.")
                 return best_genome
             #speciate
-            old_time = time.time()
             for genome in self.genomes:
                 found_species = False
                 for species in self.species:
@@ -58,7 +54,6 @@ class NEATModel:
                         break
                 if not found_species:
                     self.species.append([genome])
-            print("Speciate: {0}".format(time.time() - old_time))
             # determine which genomes are suitable for crossover
             suitable_genomes = []
             top_genomes = heapq.nlargest(int(self.generational_talents), self.genomes, key=lambda x: float(x.fitness))
@@ -72,21 +67,15 @@ class NEATModel:
                     if endangered_species.fitness >= top_half_genomes[int(len(self.genomes)/2)-1].fitness:
                         suitable_genomes.append([endangered_species])
             # crossover and mutate
-            old_time = time.time()
             self.genomes.clear()
-            print("# species {0}".format(len(self.species)))
-
             self.crossover(suitable_genomes)
-            print("Cross {0}".format(time.time() - old_time))
             for genome in self.genomes:
                 genome.mutate()
 
-            old_time = time.time()
             # add the best genomes unmutated
             for genome in top_genomes:
                 genome.history[self.generation+1] = [genome.id]
                 self.genomes.append(genome)
-            print("Mutate: {0}".format(time.time() - old_time))
         return best_genome
 
     # helper function to perform genetic cross over
@@ -179,13 +168,8 @@ class NEATModel:
             # create individual's history, remove old history
             history = {self.generation+1 : [new_genome.id]}
             history_length = min(len(parent1.history), int(self.config['Speciation']['Length Of History']))
-            #print(parent1.history)
-            #print(parent2.history)
-            #print("length of history: {0}".format(history_sensitivity))
             for i in range(self.generation-history_length+1, self.generation+1):
-                #print(i)
                 history[i] = list(set(parent1.history[i] + parent2.history[i]))
-            #print("New history: {0}".format(history))
             new_genome.history = history
             connections = list(map(lambda x: (x.in_neuron.id, x.out_neuron.id),new_genome.connection_genes))
             self.genomes.append(new_genome)
