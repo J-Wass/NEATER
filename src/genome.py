@@ -1,5 +1,4 @@
 from src.gene import ConnectionGene, NeuronGene
-from functools import reduce
 import random
 import math
 
@@ -7,14 +6,28 @@ class Genome:
     global_id = 0
     @classmethod
     def get_new_global_id(cls):
+        """Class method to safely collect global id.
+
+        Can be made thread/process safe in the future if explored.
+        Increments cls.global_id for uniqueness.
+
+        Returns
+            cls.global_id (int): Unique id for genome
+
+        """
         cls.global_id += 1
         return cls.global_id
 
     def __init__(self, config):
+        """Build genome's initial structure and mutation chances.
+
+        Parameters:
+            config (configparser.ConfigParser dictionary): Config file dictionary
+
+        """
         self.fitness = 0
         self.config = config
         mutations = self.config['Mutation']
-        # chances of the 3 different mutations
         self.weight_mutation = float(mutations['Weight Mutation'])
         self.weight_randomization = float(mutations['Weight Randomization'])
         self.neuron_mutation = float(mutations['Neuron Mutation'])
@@ -50,7 +63,15 @@ class Genome:
 
     # activate output neurons
     def activate(self, input_list):
-        #print(self)
+        """Activate genome's phenotype using inputs from input_list.
+
+        Parameters:
+            input_list (list of float): Inputs being fed into genome's input neurons
+
+        Returns:
+            outputs (list of float): Float list of genome's outputs
+
+        """
         activation_function = self.config['Activation']['Activation Function']
         if len(input_list) != len(self.inputs):
             raise Exception('Expected {0} inputs, received {1}.'.format(len(self.inputs), len(input_list)))
@@ -80,8 +101,8 @@ class Genome:
         outputs = {k:v for (k,v) in value_dict.items() if k in output_ids}
         return list(outputs.values())
 
-    # mutates this genome, either through connection weight or topology
     def mutate(self):
+        """Mutuate this genome, changing biases, weights, or topology."""
         # update aggregation option
         if random.uniform(0,1) < self.aggregation_mutation:
             for neuron_gene in self.neuron_genes.values():
@@ -145,6 +166,15 @@ class Genome:
     # activation functions
     @staticmethod
     def sigmoid(num, sensitivity):
+        """Map values to a stable sigmoid function.
+
+        Parameters:
+            sensitivity (float): Activation sensitivity of sigmoid curve
+
+        Returns:
+            sigmoid (float): Activated value
+
+        """
         if num >= 0:
             return 1/(1+math.e ** (-1 * sensitivity * num))
         else:
@@ -152,6 +182,15 @@ class Genome:
 
     @staticmethod
     def relu(num):
+        """Return reLu of a specified input.
+
+        Parameters:
+            num (float): reLu input
+
+        Returns:
+            output (float): reLu output
+
+        """
         return max(0,num)
 
     def __repr__(self):

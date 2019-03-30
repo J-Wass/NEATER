@@ -3,6 +3,16 @@ import math
 import random
 
 def test_projectile_motion(individual):
+    """
+    Test method for training projectile motion.
+
+    Parameters:
+        individual (Genome.genome): Individual being tested
+
+    Returns:
+        fitness (float): Float representing this individual's fitness
+
+    """
     # fitness will be the average distance to the target, 0 is a perfect score
     fitness = 0
     n = 35

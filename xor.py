@@ -1,8 +1,16 @@
 from src import neat
-import math
-import random
 
 def test_xor(individual):
+    """
+    Test method for training bitwise xor.
+
+    Parameters:
+        individual (Genome.genome): Individual being tested
+
+    Returns:
+        fitness (float): Float representing this individual's fitness
+
+    """
     fitness = 4.0
     for x in range(2):
         for y in range(2):

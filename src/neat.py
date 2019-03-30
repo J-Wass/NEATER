@@ -3,11 +3,15 @@ from src.gene import NeuronGene, ConnectionGene
 import random
 import heapq
 import configparser
-import time
-from multiprocessing import Pool
 
-class NEATModel:
+class NEAT:
     def __init__(self, config_file):
+        """Initialize NEAT model.
+
+        Parameters:
+            config_file (string): Path to config file
+
+        """
         config = configparser.ConfigParser()
         config.read(config_file)
         self.config = config
@@ -24,6 +28,12 @@ class NEATModel:
             self.genomes.append(new_genome)
 
     def run(self, fitness_function):
+        """Run NEAT model using passed fitness function.
+
+        Parameters:
+            fitness_function (function): Function to determine fitness for each genome
+
+        """
         self.fitness_function = fitness_function
         best_genome = None
         for gen in range(int(self.config['Main']['Number of Epochs'])):
@@ -78,8 +88,15 @@ class NEATModel:
                 self.genomes.append(genome)
         return best_genome
 
-    # helper function to perform genetic cross over
     def crossover(self, suitable_genomes):
+        """Perform crossover with a list of suitable genomes.
+
+        Will populate self.genomes with next generation's genomes
+
+        Parameters:
+            suitable_genomes (list of list of genome.Genome): Genomes that may reproduce
+
+        """
         while len(self.genomes) < self.population_size - self.generational_talents:
             parent1 = None
             parent2 = None
@@ -171,5 +188,4 @@ class NEATModel:
             for i in range(self.generation-history_length+1, self.generation+1):
                 history[i] = list(set(parent1.history[i] + parent2.history[i]))
             new_genome.history = history
-            connections = list(map(lambda x: (x.in_neuron.id, x.out_neuron.id),new_genome.connection_genes))
             self.genomes.append(new_genome)

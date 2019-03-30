@@ -1,14 +1,21 @@
 from src import neat
 from ple.games.flappybird import FlappyBird
 from ple import PLE
-import math
-import random
 import os
 import pickle
 
 flappy_game = None
 
 def test_flappy(individual):
+    """Test method for training flappy bird.
+
+    Parameters:
+        individual (Genome.genome): Individual being tested
+
+    Returns:
+        fitness (float): Float representing this individual's fitness
+
+    """
     global flappy_game
     JUMP = 119 #apparently, action 119 is jump in flappybird
     NOOP = 0
