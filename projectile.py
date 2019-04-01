@@ -3,11 +3,10 @@ import math
 import random
 
 def test_projectile_motion(individual):
-    """
-    Test method for training projectile motion.
+    """Test method for training projectile motion.
 
     Parameters:
-        individual (Genome.genome): Individual being tested
+        individual (genome.Genome): Individual being tested
 
     Returns:
         fitness (float): Float representing this individual's fitness
@@ -27,7 +26,7 @@ def test_projectile_motion(individual):
     return fitness
 
 if __name__ == '__main__':
-    model = neat.NEATModel(config_file="projectile.config")
+    model = neat.NEAT(config_file="projectile.config")
     best_genome = model.run(fitness_function=test_projectile_motion)
     print(best_genome)
     ans = best_genome.activate([2.1,1.9,4.1])

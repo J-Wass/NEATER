@@ -1,11 +1,10 @@
 from src import neat
 
 def test_xor(individual):
-    """
-    Test method for training bitwise xor.
+    """Test method for training bitwise xor.
 
     Parameters:
-        individual (Genome.genome): Individual being tested
+        individual (genome.Genome): Individual being tested
 
     Returns:
         fitness (float): Float representing this individual's fitness
@@ -19,7 +18,7 @@ def test_xor(individual):
     return fitness
 
 if __name__ == '__main__':
-    model = neat.NEATModel(config_file="xor.config")
+    model = neat.NEAT(config_file="xor.config")
     best_genome = model.run(fitness_function=test_xor)
     print(best_genome)
     print("0,0 -> 0 vs {0}".format(best_genome.activate([0,0])[0]))
