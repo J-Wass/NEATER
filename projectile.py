@@ -1,4 +1,4 @@
-from src import neat
+from NEATER import neat
 import math
 import random
 

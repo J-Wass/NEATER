@@ -1,4 +1,4 @@
-from src import neat
+from NEATER import neat
 
 def test_xor(individual):
     """Test method for training bitwise xor.

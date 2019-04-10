@@ -1,4 +1,4 @@
-from src import neat
+from NEATER import neat
 from ple.games.snake import Snake
 from ple import PLE
 import os
